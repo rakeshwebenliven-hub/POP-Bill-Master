@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ParsedBillItem } from '../types';
 import { APP_TEXT } from '../constants';
@@ -19,6 +20,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
   const [error, setError] = useState<string | null>(null);
   const [targetUnit, setTargetUnit] = useState<UnitMode>('sq.ft');
   const [targetFloor, setTargetFloor] = useState<string>('');
+  const [customFloor, setCustomFloor] = useState<string>('');
   
   const recognitionRef = useRef<any>(null);
   const t = APP_TEXT;
@@ -29,6 +31,8 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       setTranscript('');
       setParsedItem(null);
       setError(null);
+      setCustomFloor('');
+      setTargetFloor('');
       
       // Initialize Speech Recognition
       if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -37,7 +41,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         recognitionRef.current.continuous = false; 
         recognitionRef.current.interimResults = true; 
         
-        // Use Indian English for better recognition
+        // Use Indian English for better recognition of accents and mixed Hindi words
         recognitionRef.current.lang = 'en-IN'; 
 
         recognitionRef.current.onstart = () => {
@@ -84,10 +88,11 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
   // Re-parse whenever transcript or settings change
   useEffect(() => {
     if (transcript) {
-        const parsed = parseLocalTranscript(transcript, targetUnit, targetFloor);
+        const floorToUse = targetFloor === 'custom' ? customFloor : targetFloor;
+        const parsed = parseLocalTranscript(transcript, targetUnit, floorToUse);
         setParsedItem(parsed);
     }
-  }, [transcript, targetUnit, targetFloor]);
+  }, [transcript, targetUnit, targetFloor, customFloor]);
 
   const toggleListening = () => {
     if (isListening) {
@@ -111,7 +116,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
      return (text.match(/(\d+(\.\d+)?)/g) || []).map(Number);
   };
 
-  // Enhanced Regex Parser with Strict Unit Context
+  // Enhanced Regex Parser with Strict Unit Context & Indian Intent
   const parseLocalTranscript = (text: string, unitMode: UnitMode, manualFloor: string): ParsedBillItem => {
     let description = text;
     let length = 0;
@@ -133,9 +138,12 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     }
 
     // 2. Detect Rate (Extract first to avoid confusion with dimensions)
-    const rateRegex = /(?:rate|@|at|price|rs\.?|rupees?)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rupees|rs\.?)/i;
+    // Supports: "Rate 90", "Price 90", "@ 90", "Bhav 90", "Bhaav 90", "90 Rs", "90 Rupaye", "90 ka"
+    const rateRegex = /(?:rate|price|bhav|bhaav|cost|kimat|@|at|rs\.?|inr|rupees?)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rupees?|rupaye|rs\.?|inr)/i;
     const rateMatch = description.match(rateRegex);
+    
     if (rateMatch) {
+      // Group 1 captures "Rate 90", Group 2 captures "90 Rupaye"
       rate = parseFloat(rateMatch[1] || rateMatch[2]);
       description = description.replace(rateMatch[0], ' ').trim();
     }
@@ -143,7 +151,8 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     // 3. Detect Data based on Unit Mode
     if (unitMode === 'sq.ft') {
         // Look for 2 dimensions: "10 x 12", "10 by 12", "10 12"
-        const dimRegex = /(\d+(?:\.\d+)?)\s*(?:x|by|into|\*|\s)\s*(\d+(?:\.\d+)?)/i;
+        // Also supports "10 into 12", "10 multiply 12"
+        const dimRegex = /(\d+(?:\.\d+)?)\s*(?:x|by|into|multiply|\*|\s)\s*(\d+(?:\.\d+)?)/i;
         const dimMatch = description.match(dimRegex);
 
         if (dimMatch) {
@@ -152,7 +161,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             description = description.replace(dimMatch[0], ' ').trim();
         } else {
             // If only one number found but mode is sq.ft, usually means user spoke partial data.
-            // Try to find any remaining numbers
+            // Try to find any remaining numbers (excluding rate which was removed)
             const nums = extractNumbers(description);
             if (nums.length >= 2) {
                length = nums[0];
@@ -160,8 +169,8 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             }
         }
     } else if (unitMode === 'rft') {
-        // Look for single length dimension.
-        const rftRegex = /(\d+(?:\.\d+)?)\s*(?:rft|running|ft|feet)/i;
+        // Look for single length dimension with optional keywords
+        const rftRegex = /(\d+(?:\.\d+)?)\s*(?:rft|running|ft|feet|foot)/i;
         const rftMatch = description.match(rftRegex);
         
         if (rftMatch) {
@@ -264,9 +273,20 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                         {Object.values(t.floors).map(f => (
                             <option key={f} value={f}>{f}</option>
                         ))}
+                        <option value="custom">Describe Manually...</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
                 </div>
+                {targetFloor === 'custom' && (
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Mezzanine, Roof Top, Lobby"
+                      value={customFloor}
+                      onChange={(e) => setCustomFloor(e.target.value)}
+                      className="mt-2 w-full p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white animate-in slide-in-from-top-2 duration-200"
+                      autoFocus
+                    />
+                )}
              </div>
 
              {/* Unit Selector */}
@@ -315,7 +335,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                 <textarea 
                     value={transcript}
                     onChange={(e) => setTranscript(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                    className="w-full bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none max-h-32 overflow-y-auto"
                     rows={2}
                     placeholder="Speak or type here..."
                 />

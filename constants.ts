@@ -1,4 +1,5 @@
 
+
 export const APP_TEXT = {
   appTitle: "POP Bill Master",
   contractorDetails: "Contractor / Business Details",
@@ -58,6 +59,12 @@ export const APP_TEXT = {
     SF: "2nd Floor",
     TF: "3rd Floor",
     FF4: "4th Floor",
+    FF5: "5th Floor",
+    FF6: "6th Floor",
+    FF7: "7th Floor",
+    FF8: "8th Floor",
+    FF9: "9th Floor",
+    FF10: "10th Floor",
     Basement: "Basement"
   },
   totalArea: "Total Area",
