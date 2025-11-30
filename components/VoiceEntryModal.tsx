@@ -228,8 +228,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     let floor = manualFloor;
   
     // 3. Normalize Phonetic Matches for "By/X" and "Rate" keywords
-    // We do NOT remove currency words yet, as we need them for rate detection
-    // Added 'by' to the list explicitly
+    // We explicitly convert 'by' to 'x' so we can split dimensions easier later
     let lower = description.toLowerCase()
         .replace(/\b(by|buy|bye|bai|be|into|cross|multiply|guna)\b/g, 'x')
         .replace(/\b(ret|red|kimat|bhav|bhaav|ka)\b/g, 'rate')
@@ -246,32 +245,37 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         else if (lower.match(/\b(basement)\b/)) floor = 'Basement';
     }
 
-    // 5. Detect Rate (Improved "Responding" Capability)
+    // 5. Detect Rate (HIGHEST PRIORITY)
+    // We must extract rate FIRST to prevent it from being confused with dimensions.
+    // e.g. "10 by 12 rate 95" -> 95 is rate, not width.
+
     // Priority A: Rate with Currency Suffix/Prefix (e.g. "50 rupees", "rs 50")
-    // This solves "10 by 12 50 rupees" where "50" was previously mistaken for a dimension
     const currencyRateRegex = /(\d+(?:\.\d+)?)\s*(?:rs|rupees?|rupaye)|(?:rs|rupees?|rupaye)\s*(\d+(?:\.\d+)?)/i;
     const currencyMatch = lower.match(currencyRateRegex);
     if (currencyMatch) {
         rate = parseFloat(currencyMatch[1] || currencyMatch[2]);
+        // REMOVE matched rate string so it's not reused
         lower = lower.replace(currencyMatch[0], '').trim();
     }
 
-    // Priority B: Rate with keywords (e.g. "rate 50", "@50")
+    // Priority B: Rate with keywords (e.g. "rate 50", "@50", "price 90")
     if (rate === 0) {
         const rateRegex = /(?:rate|price|cost|@|at)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rate|price)/i;
         const rateMatch = lower.match(rateRegex);
         
         if (rateMatch) {
           rate = parseFloat(rateMatch[1] || rateMatch[2]);
+          // REMOVE matched rate string so it's not reused
           lower = lower.replace(rateMatch[0], '').trim();
         }
     }
 
-    // 6. Detect Dimensions based on Unit
+    // 6. Detect Dimensions based on Unit (AFTER Rate is removed)
+    // Extract remaining numbers
     const numbers = (lower.match(/(\d+(\.\d+)?)/g) || []).map(Number);
 
     if (unitMode === 'sq.ft') {
-        // Case A: Explicit "10 x 12"
+        // Case A: Explicit "10 x 12" (remember 'by' was replaced with 'x')
         const dimRegex = /(\d+(?:\.\d+)?)\s*(?:x|\*)\s*(\d+(?:\.\d+)?)/i;
         const dimMatch = lower.match(dimRegex);
 
@@ -279,7 +283,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             length = parseFloat(dimMatch[1]);
             width = parseFloat(dimMatch[2]);
         } 
-        // Case B: Just two numbers remaining "10 12"
+        // Case B: Just two numbers remaining "10 12" (since rate was removed)
         else if (numbers.length >= 2) {
             length = numbers[0];
             width = numbers[1];
@@ -292,7 +296,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         width = 0;
     } else if (unitMode === 'nos') {
         // Nos is just quantity
-        // Priority: Look for "4 pieces" or "4 items" context
+        // Priority: Look for "4 pieces" or "4 items" context specifically
         const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items)/i;
         const qtyMatch = lower.match(qtyRegex);
         
@@ -300,17 +304,18 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             quantity = parseInt(qtyMatch[1]);
         } else if (numbers.length > 0) {
             // Fallback to first available number if no explicit context found
+            // e.g., "Flowers 4" -> Qty 4
             quantity = numbers[0];
         }
         length = 0; width = 0;
     }
   
     // 7. Cleanup Description
-    // Now safe to remove currency words and unit words
+    // Safe to remove currency words and unit words now
     let cleanDesc = cleanText
       .replace(/\b(ground|first|second|third|fourth|basement|floor)\b/gi, '')
       .replace(/\b(rate|price|bhav|rs|rupees|rupaye)\b/gi, '')
-      .replace(/\b(sq\.?ft|rft|nos|pieces)\b/gi, '')
+      .replace(/\b(sq\.?ft|rft|nos|pieces|pcs)\b/gi, '')
       .replace(/[0-9]/g, '') // Remove digits to clean parsed values
       .replace(/[^\w\s]/gi, '') // Remove special chars
       .replace(/\s+/g, ' ')
