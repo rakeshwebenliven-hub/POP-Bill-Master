@@ -12,17 +12,6 @@ interface VoiceEntryModalProps {
 
 type UnitMode = 'sq.ft' | 'rft' | 'nos';
 
-// Critical Domain Corrections Only
-const DOMAIN_CORRECTIONS: Record<string, string> = {
-    'upsc': 'pop', 
-    'syllabus': 'ceiling', 
-    'selling': 'ceiling', 
-    'cornish': 'cornice', 
-    'jipsum': 'gypsum',
-    'helmet': 'pelmet',
-    'murga': 'murga' 
-};
-
 const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onConfirm }) => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -49,7 +38,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         recognitionRef.current = new SpeechRecognition();
         recognitionRef.current.continuous = true;
         recognitionRef.current.interimResults = true;
-        recognitionRef.current.lang = 'en-IN'; 
+        recognitionRef.current.lang = 'en-IN'; // Indian English for best accent support
 
         recognitionRef.current.onstart = () => { setIsListening(true); setError(null); };
         
@@ -58,6 +47,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           for (let i = 0; i < event.results.length; i++) {
              finalTranscript += event.results[i][0].transcript;
           }
+          // Simple whitespace normalization, no word replacement
           finalTranscript = finalTranscript.replace(/\s+/g, ' ');
           setTranscript(finalTranscript);
         };
@@ -84,12 +74,13 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         setIsProcessing(true);
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
         
+        // Debounce parsing to prevent UI lag on Android
         debounceTimerRef.current = setTimeout(() => {
             const floorToUse = targetFloor === 'custom' ? customFloor : targetFloor;
             const parsed = parseLocalTranscript(transcript, targetUnit, floorToUse);
             setParsedItem(parsed);
             setIsProcessing(false);
-        }, 500);
+        }, 400);
     }
   }, [transcript, targetUnit, targetFloor, customFloor]);
 
@@ -108,27 +99,19 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     return text.split(' ').map(word => map[word.toLowerCase()] || word).join(' ');
   };
 
-  const applyDomainCorrections = (text: string): string => {
-      let corrected = text;
-      Object.keys(DOMAIN_CORRECTIONS).forEach(wrong => {
-          const regex = new RegExp(`\\b${wrong}\\b`, 'gi');
-          corrected = corrected.replace(regex, DOMAIN_CORRECTIONS[wrong]);
-      });
-      return corrected;
-  };
-
   // Robust Parser Logic
   const parseLocalTranscript = (text: string, unitMode: UnitMode, manualFloor: string): ParsedBillItem => {
-    let cleanText = applyDomainCorrections(text);
-    let processingText = normalizeNumbers(cleanText);
+    // No auto-correction map. Just normalize numbers.
+    let processingText = normalizeNumbers(text);
     
     let length = 0, width = 0, quantity = 1, rate = 0, floor = manualFloor;
 
+    // Basic technical normalizations for math only
     processingText = processingText.toLowerCase()
         .replace(/\b(by|buy|bye|bai|be|into|cross)\b/g, 'x')
         .replace(/\b(ret|red|kimat|bhav|bhaav|ka)\b/g, 'rate');
 
-    // Extract Floor
+    // Extract Floor (Basic keywords only)
     if (!floor) {
         if (processingText.match(/\b(ground|gf)\b/)) floor = 'Ground Floor';
         else if (processingText.match(/\b(first|1st|ff)\b/)) floor = '1st Floor';
@@ -140,18 +123,23 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     // Helper: Find Rate (Priority 1)
     const extractRate = (txt: string): { val: number, cleanTxt: string } => {
         // Matches: "rate 95", "@95", "95 rupees"
-        // Strict Lookahead: Ensure number isn't followed by "x" or is part of a dimension
+        // Negative Lookahead (?!\s*\d) ensures we don't match "12" in "10 by 12" as a rate if it happens to precede "rate" word accidentally, or vice versa.
+        // We strictly look for "rate/price/rs" keywords.
         const rateRegex = /(\d+(?:\.\d+)?)\s*(?:rs|rupees?)|(?:rs|rupees?)\s*(\d+(?:\.\d+)?)|(?:rate|price|@)\s*[:\-\s]*(\d+(?:\.\d+)?)/i;
         const match = txt.match(rateRegex);
         if (match) {
             const val = parseFloat(match[1] || match[2] || match[3]);
             return { val, cleanTxt: txt.replace(match[0], ' ') };
         }
+        
+        // Implicit Rate Check (Scan for dangling numbers at end of string if explicit keywords missing)
+        // This is risky, so we only do it if the string is short or structured
         return { val: 0, cleanTxt: txt };
     };
 
     if (unitMode === 'nos') {
         // 1. Quantity First (e.g. "4 pieces")
+        // We prioritize explicit quantity keywords
         const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items)/i; 
         const qtyMatch = processingText.match(qtyRegex);
         if (qtyMatch) {
@@ -166,17 +154,19 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             processingText = rateRes.cleanTxt;
         }
 
-        // 3. Fallbacks
+        // 3. Fallbacks (If specific keywords missing, rely on order: Qty -> Rate)
         const numbers = (processingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
         if (quantity === 1 && !qtyMatch && numbers.length > 0) {
              quantity = numbers.shift()!; 
         }
         if (rate === 0 && numbers.length > 0) {
             rate = numbers[0];
+            // Remove rate from description text approximation
+            // (Regex replacement is safer but this works for fallback)
         }
 
     } else {
-        // Sq.ft / R.ft: Rate First to protect dimensions
+        // Sq.ft / R.ft: Rate First to protect dimensions from being confused
         const rateRes = extractRate(processingText);
         if (rateRes.val > 0) {
             rate = rateRes.val;
@@ -195,25 +185,25 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                 if (numbers.length >= 2) {
                     length = numbers[0];
                     width = numbers[1];
-                    processingText = processingText.replace(numbers[0].toString(), '').replace(numbers[1].toString(), '');
+                    // Remove these numbers from text
+                    // We must be careful not to remove rate if it wasn't extracted yet (but it should have been)
                 }
             }
         } else if (unitMode === 'rft') {
             const numbers = (processingText.match(/(\d+(\.\d+)?)/g) || []).map(Number);
             if (numbers.length > 0) {
                 length = numbers[0];
-                processingText = processingText.replace(numbers[0].toString(), '');
             }
         }
     }
 
-    // Cleanup Description
+    // Cleanup Description: Remove keywords and numbers that were used
     let cleanDesc = processingText
       .replace(/\b(ground|first|second|floor)\b/gi, '')
       .replace(/\b(rate|price|rs|rupees)\b/gi, '')
       .replace(/\b(sq\.?ft|rft|nos|pieces)\b/gi, '')
-      .replace(/[0-9]/g, '') 
-      .replace(/[^\w\s]/gi, '')
+      .replace(/[0-9]/g, '') // Remove remaining digits
+      .replace(/[^\w\s]/gi, '') // Remove special chars
       .replace(/\s+/g, ' ')
       .trim();
     

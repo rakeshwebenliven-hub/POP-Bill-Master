@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Download, FileText, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Instagram, Facebook, Youtube, Twitter, Linkedin, MessageCircle, Share2, Users, QrCode, FilePlus, FileDown, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, ShieldCheck, AlertTriangle, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Download, FileText, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, FileDown, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, AlertTriangle, Loader2 } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile } from './types';
 import { APP_TEXT, SUBSCRIPTION_PLANS } from './constants';
 import { generateExcel } from './services/excelService';
@@ -723,21 +723,6 @@ const App: React.FC = () => {
 
       <main className="max-w-4xl mx-auto p-3 sm:p-5 space-y-6">
 
-        {/* Trial Banner */}
-        {access.isTrial && access.daysLeft === 1 && (
-           <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-2xl border border-amber-200 dark:border-amber-800 flex justify-between items-center shadow-sm animate-in slide-in-from-top duration-500">
-             <div>
-                <h3 className="font-bold text-amber-800 dark:text-amber-200 flex items-center gap-2">
-                   <AlertTriangle className="w-5 h-5" /> Your Trial Ends Tomorrow
-                </h3>
-                <p className="text-sm text-amber-600 dark:text-amber-300 hidden sm:block">Subscribe now to avoid interruption.</p>
-             </div>
-             <button onClick={() => setShowSubscription(true)} className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold py-2 px-4 rounded-lg shadow-lg shadow-amber-200 dark:shadow-none transition active:scale-95">
-                Subscribe Now
-             </button>
-           </div>
-        )}
-
         {/* Paid Plan Renewal Banner */}
         {!access.isTrial && access.hasAccess && access.daysLeft <= 3 && (
            <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-2xl border border-orange-200 dark:border-orange-800 flex justify-between items-center shadow-sm animate-in slide-in-from-top duration-500">
@@ -897,6 +882,7 @@ const App: React.FC = () => {
                         <div><label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.bankFields.bankName}</label><input type="text" value={contractor.bankDetails?.bankName || ''} onChange={e => setContractor({...contractor, bankDetails: { ...contractor.bankDetails!, bankName: e.target.value }})} className="input-field text-sm" /></div>
                         <div><label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.bankFields.ifscCode}</label><input type="text" value={contractor.bankDetails?.ifscCode || ''} onChange={e => setContractor({...contractor, bankDetails: { ...contractor.bankDetails!, ifscCode: e.target.value.toUpperCase() }})} className="input-field text-sm uppercase font-mono" /></div>
                         <div className="sm:col-span-2"><label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.bankFields.upiId}</label><input type="text" value={contractor.bankDetails?.upiId || ''} onChange={e => setContractor({...contractor, bankDetails: { ...contractor.bankDetails!, upiId: e.target.value }})} className="input-field text-sm" /></div>
+                        <div className="sm:col-span-2"><label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.bankFields.branchAddress}</label><input type="text" value={contractor.bankDetails?.branchAddress || ''} onChange={e => setContractor({...contractor, bankDetails: { ...contractor.bankDetails!, branchAddress: e.target.value }})} className="input-field text-sm" /></div>
                     </div>
                 </div>
 
@@ -975,7 +961,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="col-span-1">
                   <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Total Area</label>
-                  <div className="input-field bg-slate-100 dark:bg-slate-800 text-center flex items-center justify-center font-bold text-slate-700 dark:text-slate-200">
+                  <div className="input-field bg-slate-100 dark:bg-slate-800 text-center flex items-center justify-center font-bold text-slate-700 dark:text-slate-200 truncate">
                      {calculateItemArea(currentItem.length || 0, currentItem.width || 0, currentItem.quantity || 1, currentItem.unit || 'sq.ft').toFixed(2)}
                   </div>
                 </div>
@@ -984,7 +970,7 @@ const App: React.FC = () => {
                    <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center font-bold text-slate-700 dark:text-white" value={currentItem.rate || ''} onChange={e => setCurrentItem({...currentItem, rate: parseFloat(e.target.value)})} />
                 </div>
                 <div className="col-span-1 flex items-end">
-                   <div className="w-full h-[46px] bg-slate-900 dark:bg-black px-3 rounded-xl border border-transparent text-right font-mono font-bold text-green-400 flex items-center justify-end shadow-inner tracking-widest text-lg">
+                   <div className="w-full h-[46px] bg-slate-900 dark:bg-black px-3 rounded-xl border border-transparent text-right font-mono font-bold text-green-400 flex items-center justify-end shadow-inner tracking-widest text-lg overflow-hidden">
                       {calculateAmount(currentItem.length || 0, currentItem.width || 0, currentItem.quantity || 1, currentItem.rate || 0, currentItem.unit || 'sq.ft').toFixed(0)}
                    </div>
                 </div>
