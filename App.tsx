@@ -297,10 +297,11 @@ const App: React.FC = () => {
 
   // --- Helper: Calculate Amount ---
   const calculateAmount = (len: number, wid: number, qty: number, rate: number, unit: string) => {
-    const q = qty || 1;
-    const r = rate || 0;
-    const l = len || 0;
-    const w = wid || 0;
+    // Safely parse numbers to prevent string concatenation or NaNs
+    const q = parseFloat(String(qty)) || 1;
+    const r = parseFloat(String(rate)) || 0;
+    const l = parseFloat(String(len)) || 0;
+    const w = parseFloat(String(wid)) || 0;
     
     if (unit === 'nos') {
         return q * r;

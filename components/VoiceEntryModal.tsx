@@ -229,8 +229,9 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
   
     // 3. Normalize Phonetic Matches for "By/X" and "Rate" keywords
     // We do NOT remove currency words yet, as we need them for rate detection
+    // Added 'by' to the list explicitly
     let lower = description.toLowerCase()
-        .replace(/\b(buy|bye|bai|be|into|cross|multiply|guna)\b/g, 'x')
+        .replace(/\b(by|buy|bye|bai|be|into|cross|multiply|guna)\b/g, 'x')
         .replace(/\b(ret|red|kimat|bhav|bhaav|ka)\b/g, 'rate')
         .replace(/\b(lamba|lambai|length)\b/g, '')
         .replace(/\b(chouda|choudai|width)\b/g, '');
@@ -291,7 +292,14 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         width = 0;
     } else if (unitMode === 'nos') {
         // Nos is just quantity
-        if (numbers.length > 0) {
+        // Priority: Look for "4 pieces" or "4 items" context
+        const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items)/i;
+        const qtyMatch = lower.match(qtyRegex);
+        
+        if (qtyMatch) {
+            quantity = parseInt(qtyMatch[1]);
+        } else if (numbers.length > 0) {
+            // Fallback to first available number if no explicit context found
             quantity = numbers[0];
         }
         length = 0; width = 0;
@@ -303,7 +311,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       .replace(/\b(ground|first|second|third|fourth|basement|floor)\b/gi, '')
       .replace(/\b(rate|price|bhav|rs|rupees|rupaye)\b/gi, '')
       .replace(/\b(sq\.?ft|rft|nos|pieces)\b/gi, '')
-      .replace(/[0-9]/g, '') // Remove digits
+      .replace(/[0-9]/g, '') // Remove digits to clean parsed values
       .replace(/[^\w\s]/gi, '') // Remove special chars
       .replace(/\s+/g, ' ')
       .trim();
