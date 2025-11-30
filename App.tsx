@@ -132,9 +132,14 @@ const App: React.FC = () => {
     
     // Initialize Google Drive
     initGoogleDrive().then(() => {
-        // Check if previously connected or just ready
         console.log("Google Drive API Ready");
     });
+
+    // Detect if running in standalone mode (PWA)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    if (isStandalone) {
+      console.log("Running in App Mode");
+    }
   }, []);
 
   // --- App Load Effects ---
@@ -737,7 +742,7 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-40 font-inter text-slate-900 dark:text-slate-100 transition-colors duration-200">
       
       {/* --- HEADER --- */}
-      <header className="bg-indigo-600 dark:bg-indigo-950 text-white shadow-lg sticky top-0 z-30">
+      <header className="bg-indigo-600 dark:bg-indigo-950 text-white shadow-lg sticky top-0 z-30 safe-area-top">
         <div className="max-w-4xl mx-auto px-4 py-3 sm:py-4">
           <div className="flex justify-between items-center mb-3">
             <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
