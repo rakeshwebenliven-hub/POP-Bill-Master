@@ -243,69 +243,104 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         else if (processingText.match(/\b(basement)\b/)) floor = 'Basement';
     }
 
-    // 5. EXTRACT & REMOVE RATE (HIGHEST PRIORITY)
-    // Matches: "rate 95", "@95", "95 rupees", "price 50"
-    // IMPROVED: Added negative lookahead (?!\s*\d) to the last group.
-    // This prevents "12 rate 95" from matching "12 rate" (where 12 is dimension).
-    const rateRegex = /(\d+(?:\.\d+)?)\s*(?:rs|rupees?|rupaye)|(?:rs|rupees?|rupaye)\s*(\d+(?:\.\d+)?)|(?:rate|price|cost|@|at)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rate|price)(?!\s*\d)/i;
-    
-    const rateMatch = processingText.match(rateRegex);
-    if (rateMatch) {
-        // Find the capture group that matched
-        const foundRate = rateMatch[1] || rateMatch[2] || rateMatch[3] || rateMatch[4];
-        if (foundRate) {
-            rate = parseFloat(foundRate);
-            // REMOVE the entire matched string from text so it's not reused
-            processingText = processingText.replace(rateMatch[0], ' ');
-        }
-    }
-
-    // 6. EXTRACT DIMENSIONS / QUANTITY (Based on Unit)
-    // Now that rate is gone, we look for dimensions in the remaining text.
-    
-    if (unitMode === 'sq.ft') {
-        // Pattern 1: Explicit "10 x 12" (remember we replaced 'by' with 'x')
-        const dimXRegex = /(\d+(?:\.\d+)?)\s*(?:x|\*)\s*(\d+(?:\.\d+)?)/;
-        const dimXMatch = processingText.match(dimXRegex);
-
-        if (dimXMatch) {
-            length = parseFloat(dimXMatch[1]);
-            width = parseFloat(dimXMatch[2]);
-            // Remove from text
-            processingText = processingText.replace(dimXMatch[0], ' ');
-        } else {
-            // Pattern 2: Fallback to finding first 2 numbers
-            const numbers = (processingText.match(/(\d+(\.\d+)?)/g) || []).map(Number);
-            if (numbers.length >= 2) {
-                length = numbers[0];
-                width = numbers[1];
-                // Remove first two numbers from text roughly
-                processingText = processingText.replace(numbers[0].toString(), '').replace(numbers[1].toString(), '');
+    // --- HELPER: Extract and Remove Rate ---
+    const extractRate = (txt: string): { val: number, cleanTxt: string } => {
+        // Matches: "rate 95", "@95", "95 rupees", "price 50"
+        // Negative lookahead (?!\s*\d) prevents matching "12" in "12 rate" (where 12 is dimension)
+        const rateRegex = /(\d+(?:\.\d+)?)\s*(?:rs|rupees?|rupaye)|(?:rs|rupees?|rupaye)\s*(\d+(?:\.\d+)?)|(?:rate|price|cost|@|at)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rate|price)(?!\s*\d)/i;
+        
+        const rateMatch = txt.match(rateRegex);
+        if (rateMatch) {
+            const foundRate = rateMatch[1] || rateMatch[2] || rateMatch[3] || rateMatch[4];
+            if (foundRate) {
+                return { val: parseFloat(foundRate), cleanTxt: txt.replace(rateMatch[0], ' ') };
             }
         }
-    } else if (unitMode === 'rft') {
-        // Find first number
-        const numbers = (processingText.match(/(\d+(\.\d+)?)/g) || []).map(Number);
-        if (numbers.length > 0) {
-            length = numbers[0];
-            // Remove
-            processingText = processingText.replace(numbers[0].toString(), '');
-        }
-    } else if (unitMode === 'nos') {
-        // Pattern: "4 pieces", "4 nos"
-        const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items)/i;
+        return { val: 0, cleanTxt: txt };
+    };
+
+    // --- EXECUTION ORDER BASED ON UNIT ---
+
+    if (unitMode === 'nos') {
+        // STRATEGY FOR NOS:
+        // 1. Find explicit quantity (e.g. "4 pieces") FIRST to avoid confusion with rate
+        // 2. Then Find Rate
+        // 3. Then Find implicit numbers
+        
+        // 1. Explicit Quantity
+        const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items|prices)/i; // Added 'prices' in case 'pieces' is misheard
         const qtyMatch = processingText.match(qtyRegex);
         
         if (qtyMatch) {
             quantity = parseInt(qtyMatch[1]);
             processingText = processingText.replace(qtyMatch[0], ' ');
-        } else {
-             // Fallback: Find first integer
-             const numbers = (processingText.match(/(\d+)/g) || []).map(Number);
-             if (numbers.length > 0) {
-                 quantity = numbers[0];
-                 processingText = processingText.replace(numbers[0].toString(), '');
-             }
+        }
+
+        // 2. Extract Rate
+        const rateRes = extractRate(processingText);
+        if (rateRes.val > 0) {
+            rate = rateRes.val;
+            processingText = rateRes.cleanTxt;
+        }
+
+        // 3. Fallback / Implicit Handling
+        const numbers = (processingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
+        
+        // If explicit quantity wasn't found, take the first number
+        if (quantity === 1 && !qtyMatch && numbers.length > 0) {
+             quantity = numbers[0];
+             // Remove used number
+             const idx = processingText.indexOf(numbers[0].toString());
+             if (idx > -1) processingText = processingText.slice(0, idx) + processingText.slice(idx + numbers[0].toString().length);
+             // Remove from numbers array for next step
+             numbers.shift(); 
+        }
+
+        // If rate wasn't found but we still have numbers (implicit rate)
+        if (rate === 0 && numbers.length > 0) {
+            rate = numbers[0];
+            const idx = processingText.indexOf(numbers[0].toString());
+             if (idx > -1) processingText = processingText.slice(0, idx) + processingText.slice(idx + numbers[0].toString().length);
+        }
+
+    } else {
+        // STRATEGY FOR SQ.FT / R.FT:
+        // 1. Extract Rate FIRST (to protect dimensions like "10" from being seen as "10 rate")
+        // 2. Then Extract Dimensions
+
+        // 1. Extract Rate
+        const rateRes = extractRate(processingText);
+        if (rateRes.val > 0) {
+            rate = rateRes.val;
+            processingText = rateRes.cleanTxt;
+        }
+
+        // 2. Extract Dimensions
+        if (unitMode === 'sq.ft') {
+            // Pattern 1: Explicit "10 x 12" (remember we replaced 'by' with 'x')
+            const dimXRegex = /(\d+(?:\.\d+)?)\s*(?:x|\*)\s*(\d+(?:\.\d+)?)/;
+            const dimXMatch = processingText.match(dimXRegex);
+    
+            if (dimXMatch) {
+                length = parseFloat(dimXMatch[1]);
+                width = parseFloat(dimXMatch[2]);
+                processingText = processingText.replace(dimXMatch[0], ' ');
+            } else {
+                // Pattern 2: Fallback to finding first 2 numbers
+                const numbers = (processingText.match(/(\d+(\.\d+)?)/g) || []).map(Number);
+                if (numbers.length >= 2) {
+                    length = numbers[0];
+                    width = numbers[1];
+                    processingText = processingText.replace(numbers[0].toString(), '').replace(numbers[1].toString(), '');
+                }
+            }
+        } else if (unitMode === 'rft') {
+            // Find first number
+            const numbers = (processingText.match(/(\d+(\.\d+)?)/g) || []).map(Number);
+            if (numbers.length > 0) {
+                length = numbers[0];
+                processingText = processingText.replace(numbers[0].toString(), '');
+            }
         }
     }
 
