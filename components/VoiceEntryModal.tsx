@@ -244,9 +244,10 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     }
 
     // 5. EXTRACT & REMOVE RATE (HIGHEST PRIORITY)
-    // This is critical. We must remove rate to prevent it from being seen as a dimension.
     // Matches: "rate 95", "@95", "95 rupees", "price 50"
-    const rateRegex = /(\d+(?:\.\d+)?)\s*(?:rs|rupees?|rupaye)|(?:rs|rupees?|rupaye)\s*(\d+(?:\.\d+)?)|(?:rate|price|cost|@|at)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rate|price)/i;
+    // IMPROVED: Added negative lookahead (?!\s*\d) to the last group.
+    // This prevents "12 rate 95" from matching "12 rate" (where 12 is dimension).
+    const rateRegex = /(\d+(?:\.\d+)?)\s*(?:rs|rupees?|rupaye)|(?:rs|rupees?|rupaye)\s*(\d+(?:\.\d+)?)|(?:rate|price|cost|@|at)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rate|price)(?!\s*\d)/i;
     
     const rateMatch = processingText.match(rateRegex);
     if (rateMatch) {
@@ -279,7 +280,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                 length = numbers[0];
                 width = numbers[1];
                 // Remove first two numbers from text roughly
-                // (Simple regex replace might remove wrong one if duplicates exist, but okay for now)
                 processingText = processingText.replace(numbers[0].toString(), '').replace(numbers[1].toString(), '');
             }
         }
@@ -311,9 +311,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
 
     // 7. CLEANUP DESCRIPTION
     // Remove the original raw text parts that were used for parsing
-    // We work on the original `cleanText` but remove parts found in `processingText` logic? 
-    // Easier: Just use the `processingText` which we've been stripping numbers from.
-    
     let cleanDesc = processingText
       .replace(/\b(ground|first|second|third|fourth|basement|floor)\b/gi, '')
       .replace(/\b(rate|price|bhav|rs|rupees|rupaye)\b/gi, '')
