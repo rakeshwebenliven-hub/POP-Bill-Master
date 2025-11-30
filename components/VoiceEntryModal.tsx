@@ -18,6 +18,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
   const [parsedItem, setParsedItem] = useState<ParsedBillItem | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [targetUnit, setTargetUnit] = useState<UnitMode>('sq.ft');
+  const [targetFloor, setTargetFloor] = useState<string>('');
   
   const recognitionRef = useRef<any>(null);
   const t = APP_TEXT;
@@ -80,13 +81,13 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     };
   }, [isOpen]);
 
-  // Re-parse whenever transcript or target unit changes
+  // Re-parse whenever transcript or settings change
   useEffect(() => {
     if (transcript) {
-        const parsed = parseLocalTranscript(transcript, targetUnit);
+        const parsed = parseLocalTranscript(transcript, targetUnit, targetFloor);
         setParsedItem(parsed);
     }
-  }, [transcript, targetUnit]);
+  }, [transcript, targetUnit, targetFloor]);
 
   const toggleListening = () => {
     if (isListening) {
@@ -111,23 +112,25 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
   };
 
   // Enhanced Regex Parser with Strict Unit Context
-  const parseLocalTranscript = (text: string, unitMode: UnitMode): ParsedBillItem => {
+  const parseLocalTranscript = (text: string, unitMode: UnitMode, manualFloor: string): ParsedBillItem => {
     let description = text;
     let length = 0;
     let width = 0;
     let quantity = 1;
     let rate = 0;
-    let floor = '';
+    let floor = manualFloor;
   
     const lower = text.toLowerCase();
   
-    // 1. Detect Floor
-    if (lower.match(/\b(ground|gf)\b/)) floor = 'Ground Floor';
-    else if (lower.match(/\b(first|1st|ff)\b/)) floor = '1st Floor';
-    else if (lower.match(/\b(second|2nd|sf)\b/)) floor = '2nd Floor';
-    else if (lower.match(/\b(third|3rd|tf)\b/)) floor = '3rd Floor';
-    else if (lower.match(/\b(fourth|4th)\b/)) floor = '4th Floor';
-    else if (lower.match(/\b(basement)\b/)) floor = 'Basement';
+    // 1. Detect Floor (if not manually selected)
+    if (!floor) {
+        if (lower.match(/\b(ground|gf)\b/)) floor = 'Ground Floor';
+        else if (lower.match(/\b(first|1st|ff)\b/)) floor = '1st Floor';
+        else if (lower.match(/\b(second|2nd|sf)\b/)) floor = '2nd Floor';
+        else if (lower.match(/\b(third|3rd|tf)\b/)) floor = '3rd Floor';
+        else if (lower.match(/\b(fourth|4th)\b/)) floor = '4th Floor';
+        else if (lower.match(/\b(basement)\b/)) floor = 'Basement';
+    }
 
     // 2. Detect Rate (Extract first to avoid confusion with dimensions)
     const rateRegex = /(?:rate|@|at|price|rs\.?|rupees?)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rupees|rs\.?)/i;
@@ -154,13 +157,10 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             if (nums.length >= 2) {
                length = nums[0];
                width = nums[1];
-               // Simple text cleanup of these numbers would be complex without regex range, 
-               // so we rely on regex mostly.
             }
         }
     } else if (unitMode === 'rft') {
         // Look for single length dimension.
-        // Regex: Number followed by 'feet' or just any number if mode is explicit
         const rftRegex = /(\d+(?:\.\d+)?)\s*(?:rft|running|ft|feet)/i;
         const rftMatch = description.match(rftRegex);
         
@@ -168,14 +168,12 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             length = parseFloat(rftMatch[1]);
             description = description.replace(rftMatch[0], ' ').trim();
         } else {
-            // Fallback: take the first number found in description
             const nums = extractNumbers(description);
             if (nums.length > 0) {
                length = nums[0];
-               // Remove it roughly from desc? Hard to do cleanly without position.
             }
         }
-        width = 0; // Not applicable for billing calculation usually in this app logic
+        width = 0; 
     } else if (unitMode === 'nos') {
         // Look for quantity
         const qtyRegex = /(?:qty|quantity|count)\s*[:\-\s]*(\d+)|(\d+)\s*(?:nos|numbers|pieces|pcs)/i;
@@ -217,7 +215,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     };
   };
 
-  // Get hint text based on unit
   const getHintText = () => {
      if (targetUnit === 'sq.ft') return t.voiceHints.sqft;
      if (targetUnit === 'rft') return t.voiceHints.rft;
@@ -252,19 +249,40 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             </div>
           )}
 
-          {/* Unit Selector */}
-          <div className="w-full mb-6">
-             <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 block text-left">Select Unit Type</label>
-             <div className="grid grid-cols-3 gap-2">
-                {(['sq.ft', 'rft', 'nos'] as const).map((u) => (
-                   <button
-                     key={u}
-                     onClick={() => setTargetUnit(u)}
-                     className={`py-2 px-1 rounded-lg text-sm font-bold border-2 transition-all ${targetUnit === u ? 'border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-500' : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-indigo-300'}`}
-                   >
-                      {u === 'sq.ft' ? t.sqft : u === 'rft' ? t.rft : t.nos}
-                   </button>
-                ))}
+          {/* Controls: Floor & Unit */}
+          <div className="w-full mb-6 space-y-4">
+             {/* Floor Selector */}
+             <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 block text-left">Floor (Optional)</label>
+                <div className="relative">
+                    <select 
+                        value={targetFloor} 
+                        onChange={(e) => setTargetFloor(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white font-medium appearance-none"
+                    >
+                        <option value="">Auto Detect from Voice</option>
+                        {Object.values(t.floors).map(f => (
+                            <option key={f} value={f}>{f}</option>
+                        ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
+                </div>
+             </div>
+
+             {/* Unit Selector */}
+             <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 block text-left">Unit Type</label>
+                <div className="grid grid-cols-3 gap-2">
+                    {(['sq.ft', 'rft', 'nos'] as const).map((u) => (
+                    <button
+                        key={u}
+                        onClick={() => setTargetUnit(u)}
+                        className={`py-2 px-1 rounded-lg text-sm font-bold border-2 transition-all ${targetUnit === u ? 'border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-500' : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-indigo-300'}`}
+                    >
+                        {u === 'sq.ft' ? t.sqft : u === 'rft' ? t.rft : t.nos}
+                    </button>
+                    ))}
+                </div>
              </div>
           </div>
           
@@ -313,6 +331,12 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                   <span className="text-xs text-indigo-700 dark:text-indigo-400 block">Description</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-100">{parsedItem.description}</span>
                 </div>
+                {parsedItem.floor && (
+                    <div className="col-span-2">
+                        <span className="text-xs text-indigo-700 dark:text-indigo-400 block">Floor</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide text-xs bg-white dark:bg-slate-800 px-2 py-0.5 rounded inline-block border border-indigo-100 dark:border-indigo-900">{parsedItem.floor}</span>
+                    </div>
+                )}
                 <div>
                   <span className="text-xs text-indigo-700 dark:text-indigo-400 block">Unit</span>
                   <span className="font-bold text-slate-800 dark:text-slate-100 uppercase">{parsedItem.unit}</span>
