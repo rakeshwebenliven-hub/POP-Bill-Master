@@ -746,11 +746,11 @@ const App: React.FC = () => {
       <header className="bg-indigo-600 dark:bg-indigo-950 text-white shadow-lg sticky top-0 z-30 safe-area-top">
         <div className="max-w-4xl mx-auto px-4 py-3 sm:py-4">
           <div className="flex justify-between items-center mb-3">
-            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2 flex-wrap">
               <Building2 className="w-6 h-6 sm:w-8 sm:h-8" />
               {t.appTitle}
               {access.isTrial && (
-                 <span className="text-[10px] bg-indigo-500 px-2 py-0.5 rounded-full border border-indigo-400 whitespace-nowrap">
+                 <span className="text-[10px] bg-indigo-500 px-1.5 py-0.5 rounded-full border border-indigo-400 whitespace-nowrap leading-none self-center mt-0.5">
                    Trial: {access.daysLeft}d
                  </span>
               )}
@@ -781,7 +781,7 @@ const App: React.FC = () => {
                onClick={() => setActiveTab('details')}
                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${activeTab === 'details' ? 'bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-400 shadow' : 'text-indigo-100 hover:bg-indigo-600/50'}`}
              >
-               Contractor / Business & Client Details
+               Contractor/Business & Client Details
              </button>
              <button 
                onClick={() => setActiveTab('items')}
@@ -797,24 +797,6 @@ const App: React.FC = () => {
 
         {/* --- DASHBOARD BANNERS --- */}
         
-        {/* Trial Banner - Active */}
-        {access.isTrial && access.daysLeft > 1 && (
-           <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-200 dark:border-indigo-800 flex justify-between items-center shadow-sm">
-             <div>
-                <h3 className="font-bold text-indigo-800 dark:text-indigo-200 flex items-center gap-2">
-                   <ShieldCheck className="w-5 h-5" /> Subscribe Before Trial Ends
-                </h3>
-                <p className="text-sm text-indigo-600 dark:text-indigo-300">Subscribe to continue creating bills.</p>
-             </div>
-             <button 
-               onClick={() => setShowSubscription(true)}
-               className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-2 px-4 rounded-lg shadow transition"
-             >
-                Subscribe
-             </button>
-           </div>
-        )}
-
         {/* Trial Banner - Last Day */}
         {access.isTrial && access.daysLeft === 1 && (
            <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800 flex justify-between items-center shadow-sm animate-pulse">
