@@ -162,10 +162,12 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         } else {
             // If only one number found but mode is sq.ft, usually means user spoke partial data.
             // Try to find any remaining numbers (excluding rate which was removed)
-            const nums = extractNumbers(description);
-            if (nums.length >= 2) {
-               length = nums[0];
-               width = nums[1];
+            const numMatches = description.match(/(\d+(\.\d+)?)/g);
+            if (numMatches && numMatches.length >= 2) {
+               length = parseFloat(numMatches[0]);
+               width = parseFloat(numMatches[1]);
+               // Remove used numbers from description
+               description = description.replace(numMatches[0], '').replace(numMatches[1], '').trim();
             }
         }
     } else if (unitMode === 'rft') {
@@ -177,9 +179,11 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             length = parseFloat(rftMatch[1]);
             description = description.replace(rftMatch[0], ' ').trim();
         } else {
-            const nums = extractNumbers(description);
-            if (nums.length > 0) {
-               length = nums[0];
+            const numMatches = description.match(/(\d+(\.\d+)?)/g);
+            if (numMatches && numMatches.length > 0) {
+               length = parseFloat(numMatches[0]);
+               // Remove used number from description
+               description = description.replace(numMatches[0], '').trim();
             }
         }
         width = 0; 
@@ -193,9 +197,11 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             description = description.replace(qtyMatch[0], ' ').trim();
         } else {
             // Fallback: First integer found
-            const nums = extractNumbers(description);
-            if (nums.length > 0) {
-                quantity = Math.floor(nums[0]);
+            const numMatches = description.match(/(\d+(\.\d+)?)/g);
+            if (numMatches && numMatches.length > 0) {
+                quantity = Math.floor(parseFloat(numMatches[0]));
+                // Remove used number from description
+                description = description.replace(numMatches[0], '').trim();
             }
         }
         length = 0; 
