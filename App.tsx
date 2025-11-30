@@ -296,21 +296,26 @@ const App: React.FC = () => {
   };
 
   // --- Helper: Calculate Amount ---
-  const calculateAmount = (len: number, wid: number, qty: number, rate: number, unit: string) => {
+  const calculateItemArea = (len: number, wid: number, qty: number, unit: string) => {
     // Safely parse numbers to prevent string concatenation or NaNs
     const q = parseFloat(String(qty)) || 1;
-    const r = parseFloat(String(rate)) || 0;
     const l = parseFloat(String(len)) || 0;
     const w = parseFloat(String(wid)) || 0;
     
     if (unit === 'nos') {
-        return q * r;
+        return q;
     } else if (unit === 'rft') {
-        return l * q * r;
+        return l * q;
     } else {
         // sq.ft
-        return l * w * q * r;
+        return l * w * q;
     }
+  };
+
+  const calculateAmount = (len: number, wid: number, qty: number, rate: number, unit: string) => {
+    const area = calculateItemArea(len, wid, qty, unit);
+    const r = parseFloat(String(rate)) || 0;
+    return area * r;
   };
 
   // --- Handlers ---
@@ -1243,7 +1248,7 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mb-6">
+              <div className="grid grid-cols-2 sm:grid-cols-7 gap-4 mb-6">
                 {/* Floor Selection */}
                 <div className="col-span-2 sm:col-span-2">
                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.floor} <span className="text-slate-300 font-normal">(Opt)</span></label>
@@ -1259,7 +1264,7 @@ const App: React.FC = () => {
                    </datalist>
                 </div>
 
-                <div className="col-span-2 sm:col-span-4">
+                <div className="col-span-2 sm:col-span-5">
                   <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.description}</label>
                   <input type="text" placeholder="e.g. Living Room Ceiling" className="input-field" value={currentItem.description} onChange={e => setCurrentItem({...currentItem, description: e.target.value})} />
                 </div>
@@ -1286,6 +1291,13 @@ const App: React.FC = () => {
                     <option value="rft">{t.rft}</option>
                     <option value="nos">{t.nos}</option>
                   </select>
+                </div>
+
+                <div className="col-span-1">
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Total Area</label>
+                  <div className="input-field bg-slate-100 dark:bg-slate-800 text-center flex items-center justify-center font-bold text-slate-700 dark:text-slate-200">
+                     {calculateItemArea(currentItem.length || 0, currentItem.width || 0, currentItem.quantity || 1, currentItem.unit || 'sq.ft').toFixed(2)}
+                  </div>
                 </div>
                 
                 <div className="col-span-1">
