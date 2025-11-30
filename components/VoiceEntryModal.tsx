@@ -31,8 +31,10 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
   const [targetUnit, setTargetUnit] = useState<UnitMode>('sq.ft');
   const [targetFloor, setTargetFloor] = useState<string>('');
   const [customFloor, setCustomFloor] = useState<string>('');
+  const [isProcessing, setIsProcessing] = useState(false);
   
   const recognitionRef = useRef<any>(null);
+  const debounceTimerRef = useRef<any>(null);
   const t = APP_TEXT;
 
   useEffect(() => {
@@ -43,6 +45,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       setError(null);
       setCustomFloor('');
       setTargetFloor('');
+      setIsProcessing(false);
       
       // Initialize Speech Recognition
       if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -62,11 +65,13 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         };
         
         recognitionRef.current.onresult = (event: any) => {
-          // Accumulate results properly for continuous mode
-          const currentTranscript = Array.from(event.results)
-            .map((result: any) => result[0].transcript)
-            .join('');
-          setTranscript(currentTranscript);
+          let finalTranscript = '';
+          for (let i = 0; i < event.results.length; i++) {
+             finalTranscript += event.results[i][0].transcript;
+          }
+          // Simple cleanup of spaces
+          finalTranscript = finalTranscript.replace(/\s+/g, ' ');
+          setTranscript(finalTranscript);
         };
 
         recognitionRef.current.onerror = (event: any) => {
@@ -77,7 +82,8 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           } else if (event.error === 'no-speech') {
             setIsListening(false);
           } else {
-            setError("Error hearing voice. Please try again.");
+            // Don't show error for simple no-speech timeouts, just stop listening UI
+            setIsListening(false);
           }
         };
 
@@ -93,15 +99,24 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
     };
   }, [isOpen]); 
 
-  // Re-parse whenever transcript or settings change
+  // Debounced Parsing: Re-parse whenever transcript or settings change, but wait for user to stop typing/speaking
   useEffect(() => {
     if (transcript) {
-        const floorToUse = targetFloor === 'custom' ? customFloor : targetFloor;
-        const parsed = parseLocalTranscript(transcript, targetUnit, floorToUse);
-        setParsedItem(parsed);
+        setIsProcessing(true);
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        
+        debounceTimerRef.current = setTimeout(() => {
+            const floorToUse = targetFloor === 'custom' ? customFloor : targetFloor;
+            const parsed = parseLocalTranscript(transcript, targetUnit, floorToUse);
+            setParsedItem(parsed);
+            setIsProcessing(false);
+        }, 400); // 400ms delay
     }
   }, [transcript, targetUnit, targetFloor, customFloor]);
 
@@ -111,7 +126,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     } else {
       if (error === t.speechNotSupported) return;
       
-      // Reset logic
+      // Reset logic only if starting fresh
       if (!transcript) {
         setParsedItem(null);
         setError(null);
@@ -411,8 +426,8 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             )}
           </button>
 
-          <p className="mt-4 h-6 text-sm font-medium text-indigo-600 dark:text-indigo-400">
-            {isListening ? t.listening : (transcript ? "Tap text to edit" : "Tap mic to start")}
+          <p className="mt-4 h-6 text-sm font-medium text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-2">
+            {isListening ? t.listening : (isProcessing ? <><span className="animate-spin">⏳</span> {t.processing}</> : (transcript ? "Tap text to edit" : "Tap mic to start"))}
           </p>
 
           {/* Transcript Editable Display */}
