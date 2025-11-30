@@ -951,7 +951,7 @@ const App: React.FC = () => {
                   <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.quantity}</label>
                   <input type="number" inputMode="decimal" min="1" placeholder="1" className="input-field text-center" value={currentItem.quantity || ''} onChange={e => setCurrentItem({...currentItem, quantity: parseFloat(e.target.value)})} />
                 </div>
-                <div className="col-span-1">
+                <div className={`col-span-1 ${currentItem.unit === 'nos' ? 'sm:col-span-2' : ''}`}>
                   <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.unit}</label>
                   <select className="input-field appearance-none text-center" value={currentItem.unit} onChange={e => setCurrentItem({...currentItem, unit: e.target.value as any})}>
                     <option value="sq.ft">{t.sqft}</option>
@@ -959,12 +959,14 @@ const App: React.FC = () => {
                     <option value="nos">{t.nos}</option>
                   </select>
                 </div>
+                {currentItem.unit !== 'nos' && (
                 <div className="col-span-1">
                   <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Total Area</label>
                   <div className="input-field bg-slate-100 dark:bg-slate-800 text-center flex items-center justify-center font-bold text-slate-700 dark:text-slate-200 truncate">
                      {calculateItemArea(currentItem.length || 0, currentItem.width || 0, currentItem.quantity || 1, currentItem.unit || 'sq.ft').toFixed(2)}
                   </div>
                 </div>
+                )}
                 <div className="col-span-1">
                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.rate}</label>
                    <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center font-bold text-slate-700 dark:text-white" value={currentItem.rate || ''} onChange={e => setCurrentItem({...currentItem, rate: parseFloat(e.target.value)})} />
