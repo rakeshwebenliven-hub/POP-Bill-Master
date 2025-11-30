@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Download, FileText, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Instagram, Facebook, Youtube, Twitter, Linkedin, MessageCircle, Share2, Users, QrCode, FilePlus, FileDown, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile } from './types';
@@ -749,7 +750,7 @@ const App: React.FC = () => {
               <Building2 className="w-6 h-6 sm:w-8 sm:h-8" />
               {t.appTitle}
               {access.isTrial && (
-                 <span className="text-[10px] bg-indigo-500 px-2 py-0.5 rounded-full border border-indigo-400">
+                 <span className="text-[10px] bg-indigo-500 px-2 py-0.5 rounded-full border border-indigo-400 whitespace-nowrap">
                    Trial: {access.daysLeft}d
                  </span>
               )}
@@ -780,7 +781,7 @@ const App: React.FC = () => {
                onClick={() => setActiveTab('details')}
                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${activeTab === 'details' ? 'bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-400 shadow' : 'text-indigo-100 hover:bg-indigo-600/50'}`}
              >
-               {t.contractorDetails} & {t.clientDetails}
+               Contractor / Business & Client Details
              </button>
              <button 
                onClick={() => setActiveTab('items')}
@@ -801,7 +802,7 @@ const App: React.FC = () => {
            <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-200 dark:border-indigo-800 flex justify-between items-center shadow-sm">
              <div>
                 <h3 className="font-bold text-indigo-800 dark:text-indigo-200 flex items-center gap-2">
-                   <ShieldCheck className="w-5 h-5" /> Subscribe Before Your Trial Expires
+                   <ShieldCheck className="w-5 h-5" /> Subscribe Before Trial Ends
                 </h3>
                 <p className="text-sm text-indigo-600 dark:text-indigo-300">Subscribe to continue creating bills.</p>
              </div>
@@ -1161,8 +1162,8 @@ const App: React.FC = () => {
             </div>
           </div>
         )}
-
-        {/* --- ITEMS TAB --- */}
+        
+        {/* ... (Items Tab Remains Unchanged) ... */}
         {activeTab === 'items' && (
           <div className="space-y-6 animate-in slide-in-from-right duration-300">
             

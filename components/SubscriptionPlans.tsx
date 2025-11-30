@@ -77,7 +77,7 @@ const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({ onSuccess, planId
                 <ShieldCheck className="w-6 h-6 text-indigo-600 dark:text-indigo-200" />
              </div>
              <div>
-                <h3 className="font-bold text-lg text-indigo-800 dark:text-indigo-200">Subscribe Before Your Trial Expires</h3>
+                <h3 className="font-bold text-lg text-indigo-800 dark:text-indigo-200">Subscribe Before Trial Ends</h3>
                 <p className="text-sm text-indigo-600 dark:text-indigo-300">Subscribe to continue creating bills.</p>
              </div>
           </div>
