@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Download, FileText, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Instagram, Facebook, Youtube, Twitter, Linkedin, MessageCircle, Share2, Users, QrCode, FilePlus, FileDown, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile } from './types';
@@ -369,13 +370,23 @@ const App: React.FC = () => {
   };
 
   const handleVoiceConfirm = (parsed: ParsedBillItem) => {
+    // Determine unit intelligently
+    let unit: any = 'sq.ft';
+    if (parsed.length > 0 && parsed.width > 0) {
+        unit = 'sq.ft';
+    } else if (parsed.length > 0 && parsed.width === 0) {
+        unit = 'rft';
+    } else if (parsed.quantity > 0) {
+        unit = 'nos';
+    }
+
     setCurrentItem({
       description: parsed.description,
-      length: parsed.length,
-      width: parsed.width,
-      quantity: parsed.quantity,
-      rate: parsed.rate,
-      unit: parsed.width === 0 || parsed.width === 1 ? 'rft' : 'sq.ft', // Simple heuristic
+      length: parsed.length || 0,
+      width: parsed.width || 0,
+      quantity: parsed.quantity || 1,
+      rate: parsed.rate || 0,
+      unit: unit,
       floor: parsed.floor
     });
     setIsVoiceModalOpen(false);

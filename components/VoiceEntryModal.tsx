@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ParsedBillItem } from '../types';
 import { APP_TEXT } from '../constants';
-import { Mic, X, Check, MessageSquare, AlertTriangle } from 'lucide-react';
+import { Mic, X, Check, MessageSquare, AlertTriangle, Pencil } from 'lucide-react';
 
 interface VoiceEntryModalProps {
   isOpen: boolean;
@@ -49,9 +49,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           }
           
           setTranscript(finalTranscript);
-          // Auto-parse on the fly
-          const parsed = parseLocalTranscript(finalTranscript);
-          setParsedItem(parsed);
+          // Parsing is handled by the useEffect below depending on transcript change
         };
 
         recognitionRef.current.onerror = (event: any) => {
@@ -81,15 +79,28 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     };
   }, [isOpen]);
 
+  // Re-parse whenever transcript changes (voice or manual edit)
+  useEffect(() => {
+    if (transcript) {
+        const parsed = parseLocalTranscript(transcript);
+        setParsedItem(parsed);
+    }
+  }, [transcript]);
+
   const toggleListening = () => {
     if (isListening) {
       recognitionRef.current?.stop();
     } else {
       if (error === t.speechNotSupported) return;
       
-      setParsedItem(null);
-      setTranscript('');
-      setError(null);
+      // Don't clear transcript if user wants to add to it, only clear on fresh open usually, 
+      // but for simplicity here we assume new dictation per button press unless we want append.
+      // Let's clear for fresh start logic.
+      if (!transcript) {
+        setParsedItem(null);
+        setError(null);
+      }
+      
       try {
         recognitionRef.current?.start();
       } catch (e) {
@@ -116,12 +127,32 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     else if (lower.match(/\b(third|3rd|tf)\b/)) floor = '3rd Floor';
     else if (lower.match(/\b(fourth|4th)\b/)) floor = '4th Floor';
     else if (lower.match(/\b(basement)\b/)) floor = 'Basement';
+
+    // 2. Detect Rate (Do this early to remove it from string)
+    // Matches: "rate 50", "@ 50", "price 50", "rupees 50", "rs 50", "50 rupees"
+    const rateRegex = /(?:rate|@|at|price|rs\.?|rupees?)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rupees|rs\.?)/i;
+    const rateMatch = description.match(rateRegex);
+    if (rateMatch) {
+      // Match[1] is "rate 50", Match[2] is "50 rupees"
+      rate = parseFloat(rateMatch[1] || rateMatch[2]);
+      // Remove match but keep a space
+      description = description.replace(rateMatch[0], ' ').trim();
+    }
   
-    // 2. Detect Dimensions (LxW)
-    // Matches: "10 by 12", "10x12", "10*12", "10 into 12"
-    // Handles decimals: "10.5 x 12"
-    // Improved regex to handle tight spacing better
-    const dimRegex = /(\d+(?:\.\d+)?)\s*(?:x|by|into|\*)\s*(\d+(?:\.\d+)?)/i;
+    // 3. Detect Quantity
+    // Matches: "qty 5", "quantity 5", "5 nos", "5 pieces", "5 numbers"
+    const qtyRegex = /(?:qty|quantity|count)\s*[:\-\s]*(\d+)|(\d+)\s*(?:nos|numbers|pieces|pcs)/i;
+    const qtyMatch = description.match(qtyRegex);
+    if (qtyMatch) {
+      // qtyMatch[1] is from "qty X", qtyMatch[2] is from "X nos"
+      quantity = parseInt(qtyMatch[1] || qtyMatch[2]);
+      description = description.replace(qtyMatch[0], ' ').trim();
+    }
+  
+    // 4. Detect Dimensions (LxW)
+    // Matches: "10 by 12", "10x12", "10*12", "10 into 12", AND "10 12" (space separated)
+    // The space separated one is tricky, needs to ensure they are numbers near each other
+    const dimRegex = /(\d+(?:\.\d+)?)\s*(?:x|by|into|\*|\s)\s*(\d+(?:\.\d+)?)/i;
     const dimMatch = description.match(dimRegex);
   
     if (dimMatch) {
@@ -129,7 +160,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       width = parseFloat(dimMatch[2]);
       description = description.replace(dimMatch[0], ' ').trim();
     } else {
-      // Fallback: Check for single number with 'rft' context
+      // Fallback: Check for single number with 'rft' context or just single number if no other numbers exist
       // Handles: "10 rft", "10 running feet", "10 running"
       const rftRegex = /(\d+(?:\.\d+)?)\s*(?:rft|running|ft|feet)/i;
       const rftMatch = description.match(rftRegex);
@@ -140,30 +171,11 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       }
     }
   
-    // 3. Detect Rate
-    // Matches: "rate 50", "@ 50", "price 50", "rupees 50", "rs 50", "50 rupees"
-    const rateRegex = /(?:rate|@|at|price|rs\.?|rupees?)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rupees|rs\.?)/i;
-    const rateMatch = description.match(rateRegex);
-    if (rateMatch) {
-      // Match[1] is "rate 50", Match[2] is "50 rupees"
-      rate = parseFloat(rateMatch[1] || rateMatch[2]);
-      description = description.replace(rateMatch[0], ' ').trim();
-    }
-  
-    // 4. Detect Quantity
-    // Matches: "qty 5", "quantity 5", "5 nos", "5 pieces", "5 numbers"
-    const qtyRegex = /(?:qty|quantity|count)\s*[:\-\s]*(\d+)|(\d+)\s*(?:nos|numbers|pieces|pcs)/i;
-    const qtyMatch = description.match(qtyRegex);
-    if (qtyMatch) {
-      // qtyMatch[1] is from "qty X", qtyMatch[2] is from "X nos"
-      quantity = parseInt(qtyMatch[1] || qtyMatch[2]);
-      description = description.replace(qtyMatch[0], ' ').trim();
-    }
-  
     // 5. Cleanup Description
     // Remove detected keywords to leave just the item name
     description = description
       .replace(/\b(ground|first|second|third|fourth|basement|floor)\b/gi, '')
+      .replace(/[^\w\s]/gi, '') // Remove special chars
       .replace(/\s+/g, ' ')
       .trim();
     
@@ -228,16 +240,23 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           </button>
 
           <p className="mt-4 h-6 text-sm font-medium text-indigo-600 dark:text-indigo-400">
-            {isListening ? "Listening..." : (transcript ? "Tap mic to speak again" : "Tap mic to start")}
+            {isListening ? "Listening..." : (transcript ? "Tap text to edit" : "Tap mic to start")}
           </p>
 
-          {/* Transcript Display */}
-          {transcript && (
-            <div className="mt-4 w-full bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 text-left max-h-32 overflow-y-auto">
-              <p className="text-xs text-slate-400 dark:text-slate-500 uppercase font-bold mb-1">Transcript</p>
-              <p className="text-slate-800 dark:text-slate-200 italic">"{transcript}"</p>
+          {/* Transcript Editable Display */}
+          <div className="mt-4 w-full relative">
+            <label className="text-xs text-slate-400 dark:text-slate-500 uppercase font-bold mb-1 block text-left">Transcript (Editable)</label>
+            <div className="relative">
+                <textarea 
+                    value={transcript}
+                    onChange={(e) => setTranscript(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                    rows={2}
+                    placeholder="Speak or type here..."
+                />
+                <Pencil className="w-3 h-3 absolute right-3 bottom-3 text-slate-400 pointer-events-none" />
             </div>
-          )}
+          </div>
 
           {/* Parsed Result Preview */}
           {parsedItem && (
