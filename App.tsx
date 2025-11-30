@@ -442,8 +442,7 @@ const App: React.FC = () => {
   const totals = useMemo(() => {
     const subTotal = items.reduce((acc, item) => acc + item.amount, 0);
     const totalArea = items.reduce((acc, item) => {
-       // Only sum area for sq.ft items usually, or all? 
-       // Keeping simple sum of calculated area column
+       // Sum area based on unit type and quantity
        let area = 0;
        if (item.unit === 'sq.ft') area = item.length * item.width * (item.quantity || 1);
        else if (item.unit === 'rft') area = item.length * (item.quantity || 1);
@@ -1360,19 +1359,31 @@ const App: React.FC = () => {
                                     </span>
                                  )}
                                </div>
-                               <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                               <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
                                  <span className="font-medium text-slate-700 dark:text-slate-300">
-                                   {item.unit === 'sq.ft' && `${item.length} x ${item.width} = ${(item.length * item.width).toFixed(2)}`}
-                                   {item.unit === 'rft' && `${item.length}`}
-                                   {item.unit === 'nos' && `1`} 
+                                   {item.unit === 'sq.ft' && (
+                                      <span>
+                                         {item.length} x {item.width} 
+                                         {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold"> x {item.quantity}</span>}
+                                         {' = '}
+                                         <span className="font-bold">{(item.length * item.width * (item.quantity || 1)).toFixed(2)}</span>
+                                      </span>
+                                   )}
+                                   {item.unit === 'rft' && (
+                                      <span>
+                                        {item.length}
+                                        {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold"> x {item.quantity}</span>}
+                                        {' = '}
+                                        <span className="font-bold">{(item.length * (item.quantity || 1)).toFixed(2)}</span>
+                                      </span>
+                                   )}
+                                   {item.unit === 'nos' && (
+                                      <span>
+                                         {item.quantity > 1 ? `${item.quantity} Nos` : '1 No'}
+                                      </span>
+                                   )}
                                  </span>
                                  <span className="text-xs uppercase bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500">{item.unit}</span>
-                                 
-                                 {(item.quantity > 1) && (
-                                    <span className="font-bold text-indigo-600 dark:text-indigo-400 text-xs">
-                                       x {item.quantity}
-                                    </span>
-                                 )}
                                  
                                  <span className="text-slate-300 dark:text-slate-600">|</span>
                                  <span className="font-medium">@{item.rate}</span>
@@ -1410,6 +1421,11 @@ const App: React.FC = () => {
                   <FileText className="w-5 h-5 text-indigo-600" />
                   {t.billSummary}
                </h3>
+               
+               <div className="flex justify-between text-slate-600 dark:text-slate-400 text-sm font-medium">
+                  <span>{t.totalArea}</span>
+                  <span className="font-bold text-slate-900 dark:text-white text-base">{totals.totalArea.toFixed(2)} <span className="text-xs font-normal text-slate-500">sq.ft/rft</span></span>
+               </div>
                
                <div className="flex justify-between text-slate-600 dark:text-slate-400 text-sm font-medium">
                   <span>{t.subTotal}</span>
