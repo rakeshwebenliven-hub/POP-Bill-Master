@@ -12,76 +12,15 @@ interface VoiceEntryModalProps {
 
 type UnitMode = 'sq.ft' | 'rft' | 'nos';
 
-// Domain specific corrections for Indian POP Construction context
+// Minimal Domain Corrections - Only for words that Speech Engines 100% fail on
 const DOMAIN_CORRECTIONS: Record<string, string> = {
-    // 1. POP / Material
-    'upsc': 'pop', 'cop': 'pop', 'top': 'pop', 'hope': 'pop', 'pope': 'pop', 'pup': 'pop', 'plot': 'pop',
-    
-    // 2. Ceiling Variations
-    'syllabus': 'ceiling', 'selling': 'ceiling', 'sealing': 'ceiling', 'feeling': 'ceiling', 'healing': 'ceiling', 'siling': 'ceiling', 'shilling': 'ceiling',
-    
-    // 3. Gypsum
-    'jipsum': 'gypsum', 'gipsum': 'gypsum', 'gypsy': 'gypsum', 'chips': 'gypsum', 'jip': 'gypsum',
-    
-    // 4. Cornice & Moulding
-    'cornish': 'cornice', 'corners': 'cornice', 'corner': 'cornice', 'furnace': 'cornice',
-    'folding': 'moulding', 'holding': 'moulding', 'modling': 'moulding', 'modeling': 'moulding', 'molding': 'moulding',
-    
-    // 5. Patti / Patta / Punning
-    'running': 'punning', 'funning': 'punning', 'planning': 'punning', 'panning': 'punning',
-    'party': 'patti', 'patty': 'patti', 'pata': 'patti', 'putty': 'patti', 'pretty': 'patti',
-    
-    // 6. Jali / Mesh
-    'jolly': 'jali', 'jelly': 'jali', 'chali': 'jali', 'jalee': 'jali',
-    'murga': 'murga', // context: murga jali
-    
-    // 7. Pelmet / Skirting
-    'helmet': 'pelmet', 'palmet': 'pelmet',
-    'skating': 'skirting', 'scouting': 'skirting', 'shirt': 'skirting', 'curtain': 'curtain',
-    
-    // 8. Grid / Channels / Framing
-    'great': 'grid', 'grade': 'grid',
-    'chanel': 'channel', 'panel': 'channel',
-    'perimeter': 'perimeter', 'parameter': 'perimeter', 'peri': 'perimeter',
-    'furring': 'furring', 'foreign': 'furring',
-    'intermediate': 'intermediate',
-    'section': 'section', 'suction': 'section',
-    
-    // 9. Design Elements
-    'flower': 'design', 'flour': 'design',
-    'curve': 'cove', 'core': 'cove', 'cover': 'cove',
-    'reset': 'recessed', 'rest': 'recessed', 'recess': 'recessed',
-    'bucket': 'bulkhead', 'bulk': 'bulkhead', 'head': 'head',
-    'groove': 'groove', 'grove': 'groove', 'grow': 'groove',
-    'baffle': 'baffle', 'buffalo': 'baffle',
-    'waffle': 'waffle',
-    'acoustic': 'acoustic', 'stick': 'acoustic', 'caustic': 'acoustic',
-    
-    // 10. Partitions & Boxing
-    'partition': 'partition', 'petition': 'partition', 'part': 'partition',
-    'boxing': 'boxing', 'box': 'boxing', 'bux': 'boxing',
-    'drywall': 'drywall', 'drivewall': 'drywall',
-    
-    // 11. Fixtures (Light/AC/Trap)
-    'trap': 'trap', 'tap': 'trap', 'door': 'door',
-    'track': 'track', 'truck': 'track',
-    'duct': 'duct', 'duck': 'duct',
-    'grill': 'grille', 'girl': 'grille',
-    'sensor': 'sensor',
-    
-    // 12. Rooms & Locations
-    'wall': 'wall', 'all': 'wall',
-    'hall': 'hall', 'hole': 'hall', 'whole': 'hall',
-    'bedroom': 'bedroom', 'bed': 'bedroom', 'bad': 'bedroom',
-    'bathroom': 'bathroom', 'bath': 'bathroom',
-    'kitchen': 'kitchen', 'chicken': 'kitchen',
-    'lobby': 'lobby', 'bobby': 'lobby',
-    'corridor': 'corridor',
-    
-    // 13. Common Verbs/Prepositions
-    'buy': 'by', 'bye': 'by', 'bai': 'by', 'be': 'by', 'into': 'x', 'cross': 'x', 'multiply': 'x',
-    'ret': 'rate', 'red': 'rate', 'bhav': 'rate', 'kimat': 'rate',
-    'lamba': 'length', 'chouda': 'width'
+    'upsc': 'pop', 
+    'syllabus': 'ceiling', 
+    'selling': 'ceiling', 
+    'cornish': 'cornice', 
+    'jipsum': 'gypsum',
+    'helmet': 'pelmet',
+    'murga': 'murga' 
 };
 
 const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onConfirm }) => {
@@ -111,7 +50,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         recognitionRef.current = new SpeechRecognition();
         
         // Critical for "hearing" capability: 
-        // true = keep listening even if user pauses
         recognitionRef.current.continuous = true; 
         recognitionRef.current.interimResults = true; 
         
@@ -137,8 +75,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           if (event.error === 'not-allowed') {
             setError("Microphone permission denied.");
           } else if (event.error === 'no-speech') {
-            // Ignore silence error and allow user to restart manually if needed
-            // Don't show error to UI to avoid annoyance
             setIsListening(false);
           } else {
             setError("Error hearing voice. Please try again.");
@@ -202,7 +138,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     return text.split(' ').map(word => map[word.toLowerCase()] || word).join(' ');
   };
 
-  // Apply Domain Specific Corrections (UPSC -> POP)
+  // Apply Minimal Domain Corrections
   const applyDomainCorrections = (text: string): string => {
       let corrected = text;
       Object.keys(DOMAIN_CORRECTIONS).forEach(wrong => {
@@ -215,7 +151,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
 
   // Enhanced Regex Parser
   const parseLocalTranscript = (text: string, unitMode: UnitMode, manualFloor: string): ParsedBillItem => {
-    // 1. First Apply Domain Corrections
+    // 1. First Apply Minimal Domain Corrections
     let cleanText = applyDomainCorrections(text);
     
     // 2. Normalize Numbers (words to digits)
@@ -268,7 +204,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         // 3. Then Find implicit numbers
         
         // 1. Explicit Quantity
-        const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items|prices)/i; // Added 'prices' in case 'pieces' is misheard
+        const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items|prices)/i; 
         const qtyMatch = processingText.match(qtyRegex);
         
         if (qtyMatch) {
