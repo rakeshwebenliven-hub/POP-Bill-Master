@@ -13,6 +13,78 @@ interface VoiceEntryModalProps {
 type UnitMode = 'sq.ft' | 'rft' | 'nos';
 type VoiceLang = 'en-IN' | 'hi-IN';
 
+// Domain specific corrections for Indian POP Construction context
+const DOMAIN_CORRECTIONS: Record<string, string> = {
+    // 1. POP / Material
+    'upsc': 'pop', 'cop': 'pop', 'top': 'pop', 'hope': 'pop', 'pope': 'pop', 'pup': 'pop', 'plot': 'pop',
+    
+    // 2. Ceiling Variations
+    'syllabus': 'ceiling', 'selling': 'ceiling', 'sealing': 'ceiling', 'feeling': 'ceiling', 'healing': 'ceiling', 'siling': 'ceiling', 'shilling': 'ceiling',
+    
+    // 3. Gypsum
+    'jipsum': 'gypsum', 'gipsum': 'gypsum', 'gypsy': 'gypsum', 'chips': 'gypsum', 'jip': 'gypsum',
+    
+    // 4. Cornice & Moulding
+    'cornish': 'cornice', 'corners': 'cornice', 'corner': 'cornice', 'furnace': 'cornice',
+    'folding': 'moulding', 'holding': 'moulding', 'modling': 'moulding', 'modeling': 'moulding', 'molding': 'moulding',
+    
+    // 5. Patti / Patta / Punning
+    'running': 'punning', 'funning': 'punning', 'planning': 'punning', 'panning': 'punning',
+    'party': 'patti', 'patty': 'patti', 'pata': 'patti', 'putty': 'patti', 'pretty': 'patti',
+    
+    // 6. Jali / Mesh
+    'jolly': 'jali', 'jelly': 'jali', 'chali': 'jali', 'jalee': 'jali',
+    'murga': 'murga', // context: murga jali
+    
+    // 7. Pelmet / Skirting
+    'helmet': 'pelmet', 'palmet': 'pelmet',
+    'skating': 'skirting', 'scouting': 'skirting', 'shirt': 'skirting', 'curtain': 'curtain',
+    
+    // 8. Grid / Channels / Framing
+    'great': 'grid', 'grade': 'grid',
+    'chanel': 'channel', 'panel': 'channel',
+    'perimeter': 'perimeter', 'parameter': 'perimeter', 'peri': 'perimeter',
+    'furring': 'furring', 'foreign': 'furring',
+    'intermediate': 'intermediate',
+    'section': 'section', 'suction': 'section',
+    
+    // 9. Design Elements
+    'flower': 'design', 'flour': 'design',
+    'curve': 'cove', 'core': 'cove', 'cover': 'cove',
+    'reset': 'recessed', 'rest': 'recessed', 'recess': 'recessed',
+    'bucket': 'bulkhead', 'bulk': 'bulkhead', 'head': 'head',
+    'groove': 'groove', 'grove': 'groove', 'grow': 'groove',
+    'baffle': 'baffle', 'buffalo': 'baffle',
+    'waffle': 'waffle',
+    'acoustic': 'acoustic', 'stick': 'acoustic', 'caustic': 'acoustic',
+    
+    // 10. Partitions & Boxing
+    'partition': 'partition', 'petition': 'partition', 'part': 'partition',
+    'boxing': 'boxing', 'box': 'boxing', 'bux': 'boxing',
+    'drywall': 'drywall', 'drivewall': 'drywall',
+    
+    // 11. Fixtures (Light/AC/Trap)
+    'trap': 'trap', 'tap': 'trap', 'door': 'door',
+    'track': 'track', 'truck': 'track',
+    'duct': 'duct', 'duck': 'duct',
+    'grill': 'grille', 'girl': 'grille',
+    'sensor': 'sensor',
+    
+    // 12. Rooms & Locations
+    'wall': 'wall', 'all': 'wall',
+    'hall': 'hall', 'hole': 'hall', 'whole': 'hall',
+    'bedroom': 'bedroom', 'bed': 'bedroom', 'bad': 'bedroom',
+    'bathroom': 'bathroom', 'bath': 'bathroom',
+    'kitchen': 'kitchen', 'chicken': 'kitchen',
+    'lobby': 'lobby', 'bobby': 'lobby',
+    'corridor': 'corridor',
+    
+    // 13. Common Verbs/Prepositions
+    'buy': 'by', 'bye': 'by', 'bai': 'by', 'be': 'by', 'into': 'x', 'cross': 'x', 'multiply': 'x',
+    'ret': 'rate', 'red': 'rate', 'bhav': 'rate', 'kimat': 'rate',
+    'lamba': 'length', 'chouda': 'width'
+};
+
 const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onConfirm }) => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -137,9 +209,25 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     return clean.split(' ').map(word => map[word.toLowerCase()] || word).join(' ');
   };
 
+  // Apply Domain Specific Corrections (UPSC -> POP)
+  const applyDomainCorrections = (text: string): string => {
+      let corrected = text;
+      Object.keys(DOMAIN_CORRECTIONS).forEach(wrong => {
+          // Match whole word only, case insensitive
+          const regex = new RegExp(`\\b${wrong}\\b`, 'gi');
+          corrected = corrected.replace(regex, DOMAIN_CORRECTIONS[wrong]);
+      });
+      return corrected;
+  };
+
   // Enhanced Regex Parser
   const parseLocalTranscript = (text: string, unitMode: UnitMode, manualFloor: string): ParsedBillItem => {
-    let description = normalizeNumbers(text);
+    // 1. First Apply Domain Corrections
+    let cleanText = applyDomainCorrections(text);
+    
+    // 2. Normalize Numbers (words to digits)
+    let description = normalizeNumbers(cleanText);
+
     let length = 0;
     let width = 0;
     let quantity = 1;
@@ -154,7 +242,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         .replace(/\b(lamba|lambai|length)\b/g, '')
         .replace(/\b(chouda|choudai|width)\b/g, '');
 
-    // 1. Detect Floor (if not manually selected)
+    // 3. Detect Floor (if not manually selected)
     if (!floor) {
         if (lower.match(/\b(ground|gf)\b/)) floor = 'Ground Floor';
         else if (lower.match(/\b(first|1st|ff|pehla)\b/)) floor = '1st Floor';
@@ -164,7 +252,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         else if (lower.match(/\b(basement)\b/)) floor = 'Basement';
     }
 
-    // 2. Detect Rate (Aggressive)
+    // 4. Detect Rate (Aggressive)
     // Matches: "rate 50", "@50", "50 rate", "price 50"
     const rateRegex = /(?:rate|price|cost|@|at)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rate|price)/i;
     const rateMatch = lower.match(rateRegex);
@@ -175,7 +263,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       lower = lower.replace(rateMatch[0], '').trim();
     }
 
-    // 3. Detect Dimensions based on Unit
+    // 5. Detect Dimensions based on Unit
     const numbers = (lower.match(/(\d+(\.\d+)?)/g) || []).map(Number);
 
     if (unitMode === 'sq.ft') {
@@ -206,11 +294,9 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         length = 0; width = 0;
     }
   
-    // 4. Cleanup Description
-    // Remove numbers that were used for dimensions/rate from the description text
-    // This is tricky, so we just remove *all* numbers from description to clean it up
-    // and remove common keywords
-    let cleanDesc = text
+    // 6. Cleanup Description
+    // Remove numbers used for dimensions/rate from description text
+    let cleanDesc = cleanText
       .replace(/\b(ground|first|second|third|fourth|basement|floor)\b/gi, '')
       .replace(/\b(rate|price|bhav|rs|rupees)\b/gi, '')
       .replace(/\b(sq\.?ft|rft|nos|pieces)\b/gi, '')
@@ -219,6 +305,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       .replace(/\s+/g, ' ')
       .trim();
     
+    // Capitalize Corrected Description
     if (cleanDesc.length > 0) {
         cleanDesc = cleanDesc.charAt(0).toUpperCase() + cleanDesc.slice(1);
     }
