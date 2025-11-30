@@ -294,9 +294,34 @@ const App: React.FC = () => {
      return `INV-${(history.length + 1).toString().padStart(3, '0')}`;
   };
 
+  // --- Helper: Calculate Amount ---
+  const calculateAmount = (len: number, wid: number, qty: number, rate: number, unit: string) => {
+    const q = qty || 1;
+    const r = rate || 0;
+    const l = len || 0;
+    const w = wid || 0;
+    
+    if (unit === 'nos') {
+        return q * r;
+    } else if (unit === 'rft') {
+        return l * q * r;
+    } else {
+        // sq.ft
+        return l * w * q * r;
+    }
+  };
+
   // --- Handlers ---
   const handleAddItem = () => {
     if (!currentItem.description || !currentItem.rate) return;
+
+    const amount = calculateAmount(
+        Number(currentItem.length), 
+        Number(currentItem.width), 
+        Number(currentItem.quantity), 
+        Number(currentItem.rate), 
+        currentItem.unit || 'sq.ft'
+    );
 
     // Check if updating
     if (editingId) {
@@ -309,7 +334,7 @@ const App: React.FC = () => {
             quantity: Number(currentItem.quantity) || 1,
             unit: currentItem.unit!,
             rate: Number(currentItem.rate),
-            amount: Number(currentItem.length || 0) * Number(currentItem.unit === 'sq.ft' ? (currentItem.width || 1) : 1) * (Number(currentItem.quantity) || 1) * Number(currentItem.rate),
+            amount: amount,
             floor: currentItem.floor
          } : item
        ));
@@ -323,7 +348,7 @@ const App: React.FC = () => {
           quantity: Number(currentItem.quantity) || 1,
           unit: currentItem.unit || 'sq.ft',
           rate: Number(currentItem.rate),
-          amount: Number(currentItem.length || 0) * Number(currentItem.unit === 'sq.ft' ? (currentItem.width || 1) : 1) * (Number(currentItem.quantity) || 1) * Number(currentItem.rate),
+          amount: amount,
           floor: currentItem.floor
         };
         setItems([...items, newItem]);
@@ -378,12 +403,18 @@ const App: React.FC = () => {
         unit = 'nos';
     }
 
+    // Ensure numeric values are safe
+    const len = parsed.length || 0;
+    const wid = parsed.width || 0;
+    const qty = parsed.quantity || 1;
+    const rt = parsed.rate || 0;
+
     setCurrentItem({
       description: parsed.description,
-      length: parsed.length || 0,
-      width: parsed.width || 0,
-      quantity: parsed.quantity || 1,
-      rate: parsed.rate || 0,
+      length: len,
+      width: wid,
+      quantity: qty,
+      rate: rt,
       unit: unit,
       floor: parsed.floor
     });
@@ -759,7 +790,7 @@ const App: React.FC = () => {
               <Building2 className="w-6 h-6 sm:w-7 sm:h-7" />
               {t.appTitle}
               {access.isTrial && (
-                 <span className="inline-flex items-center text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full border border-white/30 tracking-wide uppercase ml-2 align-middle">
+                 <span className="inline-flex items-center text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full border border-white/30 tracking-wide uppercase ml-2 align-middle self-center mt-0.5 leading-none whitespace-nowrap">
                    Trial: {access.daysLeft}d
                  </span>
               )}
@@ -1270,7 +1301,7 @@ const App: React.FC = () => {
 
                 <div className="col-span-1 flex items-end">
                    <div className="w-full h-[46px] bg-slate-900 dark:bg-black px-3 rounded-xl border border-transparent text-right font-mono font-bold text-green-400 flex items-center justify-end shadow-inner tracking-widest text-lg">
-                      {((currentItem.length || 0) * (currentItem.unit === 'sq.ft' ? (currentItem.width || 1) : 1) * (currentItem.quantity || 1) * (currentItem.rate || 0)).toFixed(0)}
+                      {calculateAmount(currentItem.length || 0, currentItem.width || 0, currentItem.quantity || 1, currentItem.rate || 0, currentItem.unit || 'sq.ft').toFixed(0)}
                    </div>
                 </div>
               </div>
