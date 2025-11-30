@@ -1,9 +1,8 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ParsedBillItem } from '../types';
 import { APP_TEXT } from '../constants';
-import { Mic, X, Check, MessageSquare, AlertTriangle, Pencil } from 'lucide-react';
+import { Mic, X, Check, MessageSquare, AlertTriangle, Pencil, ChevronDown } from 'lucide-react';
 
 interface VoiceEntryModalProps {
   isOpen: boolean;
@@ -11,11 +10,14 @@ interface VoiceEntryModalProps {
   onConfirm: (item: ParsedBillItem) => void;
 }
 
+type UnitMode = 'sq.ft' | 'rft' | 'nos';
+
 const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onConfirm }) => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [parsedItem, setParsedItem] = useState<ParsedBillItem | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [targetUnit, setTargetUnit] = useState<UnitMode>('sq.ft');
   
   const recognitionRef = useRef<any>(null);
   const t = APP_TEXT;
@@ -31,10 +33,10 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         recognitionRef.current = new SpeechRecognition();
-        recognitionRef.current.continuous = false; // Stop after one sentence/pause
-        recognitionRef.current.interimResults = true; // Real-time feedback
+        recognitionRef.current.continuous = false; 
+        recognitionRef.current.interimResults = true; 
         
-        // Use Indian English for better recognition of terms like "Rupees", "Lakh", and general accent
+        // Use Indian English for better recognition
         recognitionRef.current.lang = 'en-IN'; 
 
         recognitionRef.current.onstart = () => {
@@ -49,7 +51,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           }
           
           setTranscript(finalTranscript);
-          // Parsing is handled by the useEffect below depending on transcript change
         };
 
         recognitionRef.current.onerror = (event: any) => {
@@ -58,7 +59,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           if (event.error === 'not-allowed') {
             setError("Microphone permission denied.");
           } else if (event.error === 'no-speech') {
-            // Ignore, just means silence
+            // Ignore silence
           } else {
             setError("Error hearing voice. Please try again.");
           }
@@ -79,28 +80,23 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     };
   }, [isOpen]);
 
-  // Re-parse whenever transcript changes (voice or manual edit)
+  // Re-parse whenever transcript or target unit changes
   useEffect(() => {
     if (transcript) {
-        const parsed = parseLocalTranscript(transcript);
+        const parsed = parseLocalTranscript(transcript, targetUnit);
         setParsedItem(parsed);
     }
-  }, [transcript]);
+  }, [transcript, targetUnit]);
 
   const toggleListening = () => {
     if (isListening) {
       recognitionRef.current?.stop();
     } else {
       if (error === t.speechNotSupported) return;
-      
-      // Don't clear transcript if user wants to add to it, only clear on fresh open usually, 
-      // but for simplicity here we assume new dictation per button press unless we want append.
-      // Let's clear for fresh start logic.
       if (!transcript) {
         setParsedItem(null);
         setError(null);
       }
-      
       try {
         recognitionRef.current?.start();
       } catch (e) {
@@ -109,8 +105,13 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     }
   };
 
-  // Enhanced Regex Parser
-  const parseLocalTranscript = (text: string): ParsedBillItem => {
+  // Helper to extract numbers from text
+  const extractNumbers = (text: string): number[] => {
+     return (text.match(/(\d+(\.\d+)?)/g) || []).map(Number);
+  };
+
+  // Enhanced Regex Parser with Strict Unit Context
+  const parseLocalTranscript = (text: string, unitMode: UnitMode): ParsedBillItem => {
     let description = text;
     let length = 0;
     let width = 0;
@@ -128,58 +129,79 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     else if (lower.match(/\b(fourth|4th)\b/)) floor = '4th Floor';
     else if (lower.match(/\b(basement)\b/)) floor = 'Basement';
 
-    // 2. Detect Rate (Do this early to remove it from string)
-    // Matches: "rate 50", "@ 50", "price 50", "rupees 50", "rs 50", "50 rupees"
+    // 2. Detect Rate (Extract first to avoid confusion with dimensions)
     const rateRegex = /(?:rate|@|at|price|rs\.?|rupees?)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rupees|rs\.?)/i;
     const rateMatch = description.match(rateRegex);
     if (rateMatch) {
-      // Match[1] is "rate 50", Match[2] is "50 rupees"
       rate = parseFloat(rateMatch[1] || rateMatch[2]);
-      // Remove match but keep a space
       description = description.replace(rateMatch[0], ' ').trim();
     }
-  
-    // 3. Detect Quantity
-    // Matches: "qty 5", "quantity 5", "5 nos", "5 pieces", "5 numbers"
-    const qtyRegex = /(?:qty|quantity|count)\s*[:\-\s]*(\d+)|(\d+)\s*(?:nos|numbers|pieces|pcs)/i;
-    const qtyMatch = description.match(qtyRegex);
-    if (qtyMatch) {
-      // qtyMatch[1] is from "qty X", qtyMatch[2] is from "X nos"
-      quantity = parseInt(qtyMatch[1] || qtyMatch[2]);
-      description = description.replace(qtyMatch[0], ' ').trim();
+
+    // 3. Detect Data based on Unit Mode
+    if (unitMode === 'sq.ft') {
+        // Look for 2 dimensions: "10 x 12", "10 by 12", "10 12"
+        const dimRegex = /(\d+(?:\.\d+)?)\s*(?:x|by|into|\*|\s)\s*(\d+(?:\.\d+)?)/i;
+        const dimMatch = description.match(dimRegex);
+
+        if (dimMatch) {
+            length = parseFloat(dimMatch[1]);
+            width = parseFloat(dimMatch[2]);
+            description = description.replace(dimMatch[0], ' ').trim();
+        } else {
+            // If only one number found but mode is sq.ft, usually means user spoke partial data.
+            // Try to find any remaining numbers
+            const nums = extractNumbers(description);
+            if (nums.length >= 2) {
+               length = nums[0];
+               width = nums[1];
+               // Simple text cleanup of these numbers would be complex without regex range, 
+               // so we rely on regex mostly.
+            }
+        }
+    } else if (unitMode === 'rft') {
+        // Look for single length dimension.
+        // Regex: Number followed by 'feet' or just any number if mode is explicit
+        const rftRegex = /(\d+(?:\.\d+)?)\s*(?:rft|running|ft|feet)/i;
+        const rftMatch = description.match(rftRegex);
+        
+        if (rftMatch) {
+            length = parseFloat(rftMatch[1]);
+            description = description.replace(rftMatch[0], ' ').trim();
+        } else {
+            // Fallback: take the first number found in description
+            const nums = extractNumbers(description);
+            if (nums.length > 0) {
+               length = nums[0];
+               // Remove it roughly from desc? Hard to do cleanly without position.
+            }
+        }
+        width = 0; // Not applicable for billing calculation usually in this app logic
+    } else if (unitMode === 'nos') {
+        // Look for quantity
+        const qtyRegex = /(?:qty|quantity|count)\s*[:\-\s]*(\d+)|(\d+)\s*(?:nos|numbers|pieces|pcs)/i;
+        const qtyMatch = description.match(qtyRegex);
+
+        if (qtyMatch) {
+            quantity = parseInt(qtyMatch[1] || qtyMatch[2]);
+            description = description.replace(qtyMatch[0], ' ').trim();
+        } else {
+            // Fallback: First integer found
+            const nums = extractNumbers(description);
+            if (nums.length > 0) {
+                quantity = Math.floor(nums[0]);
+            }
+        }
+        length = 0; 
+        width = 0;
     }
   
-    // 4. Detect Dimensions (LxW)
-    // Matches: "10 by 12", "10x12", "10*12", "10 into 12", AND "10 12" (space separated)
-    // The space separated one is tricky, needs to ensure they are numbers near each other
-    const dimRegex = /(\d+(?:\.\d+)?)\s*(?:x|by|into|\*|\s)\s*(\d+(?:\.\d+)?)/i;
-    const dimMatch = description.match(dimRegex);
-  
-    if (dimMatch) {
-      length = parseFloat(dimMatch[1]);
-      width = parseFloat(dimMatch[2]);
-      description = description.replace(dimMatch[0], ' ').trim();
-    } else {
-      // Fallback: Check for single number with 'rft' context or just single number if no other numbers exist
-      // Handles: "10 rft", "10 running feet", "10 running"
-      const rftRegex = /(\d+(?:\.\d+)?)\s*(?:rft|running|ft|feet)/i;
-      const rftMatch = description.match(rftRegex);
-      if (rftMatch) {
-        length = parseFloat(rftMatch[1]);
-        width = 0; // Implies RFT
-        description = description.replace(rftMatch[0], ' ').trim();
-      }
-    }
-  
-    // 5. Cleanup Description
-    // Remove detected keywords to leave just the item name
+    // 4. Cleanup Description
     description = description
       .replace(/\b(ground|first|second|third|fourth|basement|floor)\b/gi, '')
       .replace(/[^\w\s]/gi, '') // Remove special chars
       .replace(/\s+/g, ' ')
       .trim();
     
-    // Capitalize first letter
     if (description.length > 0) {
         description = description.charAt(0).toUpperCase() + description.slice(1);
     }
@@ -190,8 +212,17 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       width,
       quantity,
       rate,
+      unit: unitMode, // Enforce selected unit
       floor
     };
+  };
+
+  // Get hint text based on unit
+  const getHintText = () => {
+     if (targetUnit === 'sq.ft') return t.voiceHints.sqft;
+     if (targetUnit === 'rft') return t.voiceHints.rft;
+     if (targetUnit === 'nos') return t.voiceHints.nos;
+     return t.voiceEntryHint;
   };
 
   if (!isOpen) return null;
@@ -214,14 +245,30 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         {/* Content */}
         <div className="p-6 flex flex-col items-center text-center">
           
-          {error ? (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 rounded-lg text-sm flex items-center gap-2">
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 rounded-lg text-sm flex items-center gap-2 w-full">
                <AlertTriangle className="w-4 h-4 shrink-0" />
                {error}
             </div>
-          ) : (
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{t.voiceEntryHint}</p>
           )}
+
+          {/* Unit Selector */}
+          <div className="w-full mb-6">
+             <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 block text-left">Select Unit Type</label>
+             <div className="grid grid-cols-3 gap-2">
+                {(['sq.ft', 'rft', 'nos'] as const).map((u) => (
+                   <button
+                     key={u}
+                     onClick={() => setTargetUnit(u)}
+                     className={`py-2 px-1 rounded-lg text-sm font-bold border-2 transition-all ${targetUnit === u ? 'border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-500' : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-indigo-300'}`}
+                   >
+                      {u === 'sq.ft' ? t.sqft : u === 'rft' ? t.rft : t.nos}
+                   </button>
+                ))}
+             </div>
+          </div>
+          
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 italic">{getHintText()}</p>
 
           <button 
             onClick={toggleListening}
@@ -240,7 +287,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           </button>
 
           <p className="mt-4 h-6 text-sm font-medium text-indigo-600 dark:text-indigo-400">
-            {isListening ? "Listening..." : (transcript ? "Tap text to edit" : "Tap mic to start")}
+            {isListening ? t.listening : (transcript ? "Tap text to edit" : "Tap mic to start")}
           </p>
 
           {/* Transcript Editable Display */}
@@ -267,12 +314,18 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                   <span className="font-semibold text-slate-800 dark:text-slate-100">{parsedItem.description}</span>
                 </div>
                 <div>
-                  <span className="text-xs text-indigo-700 dark:text-indigo-400 block">Size (LxW)</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-100">{parsedItem.length} x {parsedItem.width}</span>
+                  <span className="text-xs text-indigo-700 dark:text-indigo-400 block">Unit</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-100 uppercase">{parsedItem.unit}</span>
                 </div>
-                 <div>
-                  <span className="text-xs text-indigo-700 dark:text-indigo-400 block">Qty (Nos)</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-100">{parsedItem.quantity || 1}</span>
+                <div>
+                  <span className="text-xs text-indigo-700 dark:text-indigo-400 block">
+                     {parsedItem.unit === 'sq.ft' ? 'Size (LxW)' : parsedItem.unit === 'rft' ? 'Length' : 'Qty'}
+                  </span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-100">
+                    {parsedItem.unit === 'sq.ft' ? `${parsedItem.length} x ${parsedItem.width}` : 
+                     parsedItem.unit === 'rft' ? `${parsedItem.length}` : 
+                     `${parsedItem.quantity}`}
+                  </span>
                 </div>
                 <div>
                   <span className="text-xs text-indigo-700 dark:text-indigo-400 block">Rate</span>
@@ -280,7 +333,14 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                 </div>
                 <div>
                   <span className="text-xs text-indigo-700 dark:text-indigo-400 block">Amount</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-100">₹{(parsedItem.length * (parsedItem.width || 1) * (parsedItem.quantity || 1) * parsedItem.rate).toFixed(0)}</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-100">
+                     ₹{(parsedItem.unit === 'sq.ft' 
+                        ? (parsedItem.length * parsedItem.width * parsedItem.quantity * parsedItem.rate)
+                        : parsedItem.unit === 'rft'
+                        ? (parsedItem.length * parsedItem.quantity * parsedItem.rate)
+                        : (parsedItem.quantity * parsedItem.rate)
+                     ).toFixed(0)}
+                  </span>
                 </div>
               </div>
             </div>

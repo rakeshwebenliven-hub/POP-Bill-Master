@@ -60,6 +60,7 @@ export interface ParsedBillItem {
   width: number;
   quantity: number;
   rate: number;
+  unit: string; // 'sq.ft' | 'rft' | 'nos'
   floor?: string;
 }
 

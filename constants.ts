@@ -1,5 +1,4 @@
 
-
 export const APP_TEXT = {
   appTitle: "POP Bill Master",
   contractorDetails: "Contractor / Business Details",
@@ -121,6 +120,11 @@ export const APP_TEXT = {
   moveToTrash: "Move to Trash",
   voiceEntry: "Voice Entry",
   voiceEntryHint: "Tap mic & say: 'Bedroom Ceiling 10 by 12 rate 90'",
+  voiceHints: {
+    sqft: "Tap mic & say: 'Bedroom Ceiling 10 by 12 rate 90'",
+    rft: "Tap mic & say: 'Cornice Design 100 feet rate 45'",
+    nos: "Tap mic & say: 'Ceiling Flowers 4 pieces rate 250'"
+  },
   listening: "Listening...",
   processing: "Processing...",
   speechNotSupported: "Speech recognition is not supported in this browser. Please use Chrome or Edge.",

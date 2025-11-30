@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Download, FileText, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Instagram, Facebook, Youtube, Twitter, Linkedin, MessageCircle, Share2, Users, QrCode, FilePlus, FileDown, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile } from './types';
@@ -393,15 +394,8 @@ const App: React.FC = () => {
   };
 
   const handleVoiceConfirm = (parsed: ParsedBillItem) => {
-    // Determine unit intelligently
-    let unit: any = 'sq.ft';
-    if (parsed.length > 0 && parsed.width > 0) {
-        unit = 'sq.ft';
-    } else if (parsed.length > 0 && parsed.width === 0) {
-        unit = 'rft';
-    } else if (parsed.quantity > 0) {
-        unit = 'nos';
-    }
+    // Determine unit from parsed item which now comes from user selection in modal
+    const unit: any = parsed.unit;
 
     // Ensure numeric values are safe
     const len = parsed.length || 0;
