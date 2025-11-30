@@ -310,7 +310,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
   const getHintText = () => {
      if (targetUnit === 'sq.ft') return "Try: 'Bedroom 10 by 12 rate 95'";
      if (targetUnit === 'rft') return "Try: 'Cornice 100 feet rate 45'";
-     if (targetUnit === 'nos') return "Try: 'Flowers 4 pieces rate 250'";
+     if (targetUnit === 'nos') return "Try: 'Panel 4 pieces rate 250'";
      return t.voiceEntryHint;
   };
 
