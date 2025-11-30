@@ -1,9 +1,8 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ParsedBillItem } from '../types';
 import { APP_TEXT } from '../constants';
-import { Mic, X, Check, MessageSquare, AlertTriangle, Pencil, ChevronDown } from 'lucide-react';
+import { Mic, X, Check, MessageSquare, AlertTriangle, Pencil, ChevronDown, Languages } from 'lucide-react';
 
 interface VoiceEntryModalProps {
   isOpen: boolean;
@@ -12,6 +11,7 @@ interface VoiceEntryModalProps {
 }
 
 type UnitMode = 'sq.ft' | 'rft' | 'nos';
+type VoiceLang = 'en-IN' | 'hi-IN';
 
 const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onConfirm }) => {
   const [isListening, setIsListening] = useState(false);
@@ -21,6 +21,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
   const [targetUnit, setTargetUnit] = useState<UnitMode>('sq.ft');
   const [targetFloor, setTargetFloor] = useState<string>('');
   const [customFloor, setCustomFloor] = useState<string>('');
+  const [language, setLanguage] = useState<VoiceLang>('en-IN');
   
   const recognitionRef = useRef<any>(null);
   const t = APP_TEXT;
@@ -41,8 +42,8 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         recognitionRef.current.continuous = false; 
         recognitionRef.current.interimResults = true; 
         
-        // Use Indian English for better recognition of accents and mixed Hindi words
-        recognitionRef.current.lang = 'en-IN'; 
+        // Set Language based on state
+        recognitionRef.current.lang = language; 
 
         recognitionRef.current.onstart = () => {
           setIsListening(true);
@@ -54,7 +55,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             finalTranscript += event.results[i][0].transcript;
           }
-          
           setTranscript(finalTranscript);
         };
 
@@ -83,7 +83,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         recognitionRef.current.stop();
       }
     };
-  }, [isOpen]);
+  }, [isOpen, language]); // Re-init if language changes
 
   // Re-parse whenever transcript or settings change
   useEffect(() => {
@@ -99,11 +99,16 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       recognitionRef.current?.stop();
     } else {
       if (error === t.speechNotSupported) return;
+      
+      // Reset logic
       if (!transcript) {
         setParsedItem(null);
         setError(null);
       }
+      
       try {
+        // Update language before starting
+        if (recognitionRef.current) recognitionRef.current.lang = language;
         recognitionRef.current?.start();
       } catch (e) {
         console.error("Failed to start recognition", e);
@@ -111,129 +116,128 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     }
   };
 
-  // Helper to extract numbers from text
-  const extractNumbers = (text: string): number[] => {
-     return (text.match(/(\d+(\.\d+)?)/g) || []).map(Number);
+  // Convert word-numbers to digits (e.g. "ten" -> 10, "do" -> 2)
+  const normalizeNumbers = (text: string): string => {
+    const map: Record<string, string> = {
+        'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5',
+        'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10',
+        'eleven': '11', 'twelve': '12', 'twenty': '20', 'thirty': '30',
+        'forty': '40', 'fifty': '50', 'sixty': '60', 'seventy': '70',
+        'eighty': '80', 'ninety': '90', 'hundred': '100',
+        // Hindi/Hinglish Common
+        'ek': '1', 'do': '2', 'teen': '3', 'char': '4', 'paanch': '5', 'panch': '5',
+        'che': '6', 'saat': '7', 'aath': '8', 'nau': '9', 'das': '10',
+        'gyarah': '11', 'barah': '12', 'terah': '13', 'pandrah': '15',
+        'bees': '20', 'tees': '30', 'pachas': '50', 'sau': '100'
+    };
+    
+    // Replace Devanagari Digits
+    let clean = text.replace(/[०-९]/g, (d) => "0123456789"['०１２３４５６７８９'.indexOf(d)] || d);
+
+    return clean.split(' ').map(word => map[word.toLowerCase()] || word).join(' ');
   };
 
-  // Enhanced Regex Parser with Strict Unit Context & Indian Intent
+  // Enhanced Regex Parser
   const parseLocalTranscript = (text: string, unitMode: UnitMode, manualFloor: string): ParsedBillItem => {
-    let description = text;
+    let description = normalizeNumbers(text);
     let length = 0;
     let width = 0;
     let quantity = 1;
     let rate = 0;
     let floor = manualFloor;
   
-    const lower = text.toLowerCase();
-  
+    // Normalize Phonetic Matches for "By/X" and "Rate"
+    let lower = description.toLowerCase()
+        .replace(/\b(buy|bye|bai|be|into|cross|multiply|guna)\b/g, 'x')
+        .replace(/\b(ret|red|kimat|bhav|bhaav|ka)\b/g, 'rate')
+        .replace(/\b(rupees?|rupaye|rs)\b/g, '') // remove currency suffix
+        .replace(/\b(lamba|lambai|length)\b/g, '')
+        .replace(/\b(chouda|choudai|width)\b/g, '');
+
     // 1. Detect Floor (if not manually selected)
     if (!floor) {
         if (lower.match(/\b(ground|gf)\b/)) floor = 'Ground Floor';
-        else if (lower.match(/\b(first|1st|ff)\b/)) floor = '1st Floor';
-        else if (lower.match(/\b(second|2nd|sf)\b/)) floor = '2nd Floor';
-        else if (lower.match(/\b(third|3rd|tf)\b/)) floor = '3rd Floor';
+        else if (lower.match(/\b(first|1st|ff|pehla)\b/)) floor = '1st Floor';
+        else if (lower.match(/\b(second|2nd|sf|dusra)\b/)) floor = '2nd Floor';
+        else if (lower.match(/\b(third|3rd|tf|tisra)\b/)) floor = '3rd Floor';
         else if (lower.match(/\b(fourth|4th)\b/)) floor = '4th Floor';
         else if (lower.match(/\b(basement)\b/)) floor = 'Basement';
     }
 
-    // 2. Detect Rate (Extract first to avoid confusion with dimensions)
-    // Supports: "Rate 90", "Price 90", "@ 90", "Bhav 90", "Bhaav 90", "90 Rs", "90 Rupaye", "90 ka"
-    const rateRegex = /(?:rate|price|bhav|bhaav|cost|kimat|@|at|rs\.?|inr|rupees?)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rupees?|rupaye|rs\.?|inr)/i;
-    const rateMatch = description.match(rateRegex);
+    // 2. Detect Rate (Aggressive)
+    // Matches: "rate 50", "@50", "50 rate", "price 50"
+    const rateRegex = /(?:rate|price|cost|@|at)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rate|price)/i;
+    const rateMatch = lower.match(rateRegex);
     
     if (rateMatch) {
-      // Group 1 captures "Rate 90", Group 2 captures "90 Rupaye"
       rate = parseFloat(rateMatch[1] || rateMatch[2]);
-      description = description.replace(rateMatch[0], ' ').trim();
+      // Remove the found rate from string to avoid confusing dimensions
+      lower = lower.replace(rateMatch[0], '').trim();
     }
 
-    // 3. Detect Data based on Unit Mode
+    // 3. Detect Dimensions based on Unit
+    const numbers = (lower.match(/(\d+(\.\d+)?)/g) || []).map(Number);
+
     if (unitMode === 'sq.ft') {
-        // Look for 2 dimensions: "10 x 12", "10 by 12", "10 12"
-        // Also supports "10 into 12", "10 multiply 12"
-        const dimRegex = /(\d+(?:\.\d+)?)\s*(?:x|by|into|multiply|\*|\s)\s*(\d+(?:\.\d+)?)/i;
-        const dimMatch = description.match(dimRegex);
+        // Case A: Explicit "10 x 12"
+        const dimRegex = /(\d+(?:\.\d+)?)\s*(?:x|\*)\s*(\d+(?:\.\d+)?)/i;
+        const dimMatch = lower.match(dimRegex);
 
         if (dimMatch) {
             length = parseFloat(dimMatch[1]);
             width = parseFloat(dimMatch[2]);
-            description = description.replace(dimMatch[0], ' ').trim();
-        } else {
-            // If only one number found but mode is sq.ft, usually means user spoke partial data.
-            // Try to find any remaining numbers (excluding rate which was removed)
-            const numMatches = description.match(/(\d+(\.\d+)?)/g);
-            if (numMatches && numMatches.length >= 2) {
-               length = parseFloat(numMatches[0]);
-               width = parseFloat(numMatches[1]);
-               // Remove used numbers from description
-               description = description.replace(numMatches[0], '').replace(numMatches[1], '').trim();
-            }
+        } 
+        // Case B: Just two numbers remaining "10 12"
+        else if (numbers.length >= 2) {
+            length = numbers[0];
+            width = numbers[1];
         }
     } else if (unitMode === 'rft') {
-        // Look for single length dimension with optional keywords
-        const rftRegex = /(\d+(?:\.\d+)?)\s*(?:rft|running|ft|feet|foot)/i;
-        const rftMatch = description.match(rftRegex);
-        
-        if (rftMatch) {
-            length = parseFloat(rftMatch[1]);
-            description = description.replace(rftMatch[0], ' ').trim();
-        } else {
-            const numMatches = description.match(/(\d+(\.\d+)?)/g);
-            if (numMatches && numMatches.length > 0) {
-               length = parseFloat(numMatches[0]);
-               // Remove used number from description
-               description = description.replace(numMatches[0], '').trim();
-            }
+        // Rft usually has one main dimension
+        if (numbers.length > 0) {
+            length = numbers[0];
         }
-        width = 0; 
-    } else if (unitMode === 'nos') {
-        // Look for quantity
-        const qtyRegex = /(?:qty|quantity|count)\s*[:\-\s]*(\d+)|(\d+)\s*(?:nos|numbers|pieces|pcs)/i;
-        const qtyMatch = description.match(qtyRegex);
-
-        if (qtyMatch) {
-            quantity = parseInt(qtyMatch[1] || qtyMatch[2]);
-            description = description.replace(qtyMatch[0], ' ').trim();
-        } else {
-            // Fallback: First integer found
-            const numMatches = description.match(/(\d+(\.\d+)?)/g);
-            if (numMatches && numMatches.length > 0) {
-                quantity = Math.floor(parseFloat(numMatches[0]));
-                // Remove used number from description
-                description = description.replace(numMatches[0], '').trim();
-            }
-        }
-        length = 0; 
         width = 0;
+    } else if (unitMode === 'nos') {
+        // Nos is just quantity
+        if (numbers.length > 0) {
+            quantity = numbers[0];
+        }
+        length = 0; width = 0;
     }
   
     // 4. Cleanup Description
-    description = description
+    // Remove numbers that were used for dimensions/rate from the description text
+    // This is tricky, so we just remove *all* numbers from description to clean it up
+    // and remove common keywords
+    let cleanDesc = text
       .replace(/\b(ground|first|second|third|fourth|basement|floor)\b/gi, '')
+      .replace(/\b(rate|price|bhav|rs|rupees)\b/gi, '')
+      .replace(/\b(sq\.?ft|rft|nos|pieces)\b/gi, '')
+      .replace(/[0-9]/g, '') // Remove digits
       .replace(/[^\w\s]/gi, '') // Remove special chars
       .replace(/\s+/g, ' ')
       .trim();
     
-    if (description.length > 0) {
-        description = description.charAt(0).toUpperCase() + description.slice(1);
+    if (cleanDesc.length > 0) {
+        cleanDesc = cleanDesc.charAt(0).toUpperCase() + cleanDesc.slice(1);
     }
   
     return {
-      description: description || "Item", 
+      description: cleanDesc || "Item", 
       length,
       width,
       quantity,
       rate,
-      unit: unitMode, // Enforce selected unit
+      unit: unitMode,
       floor
     };
   };
 
   const getHintText = () => {
-     if (targetUnit === 'sq.ft') return t.voiceHints.sqft;
-     if (targetUnit === 'rft') return t.voiceHints.rft;
-     if (targetUnit === 'nos') return t.voiceHints.nos;
+     if (targetUnit === 'sq.ft') return "Try: 'Bedroom 10 by 12 rate 95'";
+     if (targetUnit === 'rft') return "Try: 'Cornice 100 feet rate 45'";
+     if (targetUnit === 'nos') return "Try: 'Flowers 4 pieces rate 250'";
      return t.voiceEntryHint;
   };
 
@@ -255,45 +259,64 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         </div>
 
         {/* Content */}
-        <div className="p-6 flex flex-col items-center text-center">
+        <div className="p-5 flex flex-col items-center text-center">
           
           {error && (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 rounded-lg text-sm flex items-center gap-2 w-full">
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 rounded-lg text-sm flex items-center gap-2 w-full text-left">
                <AlertTriangle className="w-4 h-4 shrink-0" />
                {error}
             </div>
           )}
 
-          {/* Controls: Floor & Unit */}
+          {/* Controls Grid */}
           <div className="w-full mb-6 space-y-4">
-             {/* Floor Selector */}
-             <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 block text-left">Floor (Optional)</label>
-                <div className="relative">
-                    <select 
-                        value={targetFloor} 
-                        onChange={(e) => setTargetFloor(e.target.value)}
-                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white font-medium appearance-none"
-                    >
-                        <option value="">Auto Detect from Voice</option>
-                        {Object.values(t.floors).map(f => (
-                            <option key={f} value={f}>{f}</option>
-                        ))}
-                        <option value="custom">Describe Manually...</option>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
+             
+             <div className="grid grid-cols-2 gap-4">
+                {/* Language Toggle */}
+                <div>
+                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 block text-left">Language</label>
+                   <button 
+                     onClick={() => setLanguage(l => l === 'en-IN' ? 'hi-IN' : 'en-IN')}
+                     className="w-full p-2.5 flex items-center justify-between bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700/50 transition"
+                   >
+                      <span className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+                         <Languages className="w-4 h-4 text-indigo-500" />
+                         {language === 'en-IN' ? 'Hinglish (India)' : 'Hindi (हिंदी)'}
+                      </span>
+                      <ChevronDown className="w-4 h-4 text-slate-400" />
+                   </button>
                 </div>
-                {targetFloor === 'custom' && (
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Mezzanine, Roof Top, Lobby"
-                      value={customFloor}
-                      onChange={(e) => setCustomFloor(e.target.value)}
-                      className="mt-2 w-full p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white animate-in slide-in-from-top-2 duration-200"
-                      autoFocus
-                    />
-                )}
+
+                {/* Floor Selector */}
+                <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 block text-left">Floor</label>
+                    <div className="relative">
+                        <select 
+                            value={targetFloor} 
+                            onChange={(e) => setTargetFloor(e.target.value)}
+                            className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white font-medium appearance-none"
+                        >
+                            <option value="">Auto Detect</option>
+                            {Object.values(t.floors).map(f => (
+                                <option key={f} value={f}>{f}</option>
+                            ))}
+                            <option value="custom">Manual...</option>
+                        </select>
+                        <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
+                </div>
              </div>
+
+             {targetFloor === 'custom' && (
+                <input 
+                  type="text" 
+                  placeholder="e.g. Mezzanine, Roof Top"
+                  value={customFloor}
+                  onChange={(e) => setCustomFloor(e.target.value)}
+                  className="w-full p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white animate-in slide-in-from-top-2 duration-200"
+                  autoFocus
+                />
+             )}
 
              {/* Unit Selector */}
              <div>
@@ -331,19 +354,19 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           </button>
 
           <p className="mt-4 h-6 text-sm font-medium text-indigo-600 dark:text-indigo-400">
-            {isListening ? t.listening : (transcript ? "Tap text to edit" : "Tap mic to start")}
+            {isListening ? (language === 'hi-IN' ? "सुन रहा हूँ..." : t.listening) : (transcript ? "Tap text to edit" : "Tap mic to start")}
           </p>
 
           {/* Transcript Editable Display */}
           <div className="mt-4 w-full relative">
-            <label className="text-xs text-slate-400 dark:text-slate-500 uppercase font-bold mb-1 block text-left">Transcript (Editable)</label>
+            <label className="text-xs text-slate-400 dark:text-slate-500 uppercase font-bold mb-1 block text-left">Transcript</label>
             <div className="relative">
                 <textarea 
                     value={transcript}
                     onChange={(e) => setTranscript(e.target.value)}
                     className="w-full bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none max-h-32 overflow-y-auto"
                     rows={2}
-                    placeholder="Speak or type here..."
+                    placeholder="Speak details..."
                 />
                 <Pencil className="w-3 h-3 absolute right-3 bottom-3 text-slate-400 pointer-events-none" />
             </div>
