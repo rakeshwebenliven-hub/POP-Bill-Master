@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ParsedBillItem } from '../types';
 import { APP_TEXT } from '../constants';
-import { Mic, X, Check, MessageSquare, AlertTriangle, Pencil, ChevronDown, Languages } from 'lucide-react';
+import { Mic, X, Check, MessageSquare, AlertTriangle, Pencil, ChevronDown } from 'lucide-react';
 
 interface VoiceEntryModalProps {
   isOpen: boolean;
@@ -11,7 +11,6 @@ interface VoiceEntryModalProps {
 }
 
 type UnitMode = 'sq.ft' | 'rft' | 'nos';
-type VoiceLang = 'en-IN' | 'hi-IN';
 
 // Domain specific corrections for Indian POP Construction context
 const DOMAIN_CORRECTIONS: Record<string, string> = {
@@ -93,7 +92,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
   const [targetUnit, setTargetUnit] = useState<UnitMode>('sq.ft');
   const [targetFloor, setTargetFloor] = useState<string>('');
   const [customFloor, setCustomFloor] = useState<string>('');
-  const [language, setLanguage] = useState<VoiceLang>('en-IN');
   
   const recognitionRef = useRef<any>(null);
   const t = APP_TEXT;
@@ -111,11 +109,14 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         recognitionRef.current = new SpeechRecognition();
-        recognitionRef.current.continuous = false; 
+        
+        // Critical for "hearing" capability: 
+        // true = keep listening even if user pauses
+        recognitionRef.current.continuous = true; 
         recognitionRef.current.interimResults = true; 
         
-        // Set Language based on state
-        recognitionRef.current.lang = language; 
+        // Force English (India) for best accent support
+        recognitionRef.current.lang = 'en-IN'; 
 
         recognitionRef.current.onstart = () => {
           setIsListening(true);
@@ -123,11 +124,11 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         };
         
         recognitionRef.current.onresult = (event: any) => {
-          let finalTranscript = '';
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            finalTranscript += event.results[i][0].transcript;
-          }
-          setTranscript(finalTranscript);
+          // Accumulate results properly for continuous mode
+          const currentTranscript = Array.from(event.results)
+            .map((result: any) => result[0].transcript)
+            .join('');
+          setTranscript(currentTranscript);
         };
 
         recognitionRef.current.onerror = (event: any) => {
@@ -136,7 +137,9 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           if (event.error === 'not-allowed') {
             setError("Microphone permission denied.");
           } else if (event.error === 'no-speech') {
-            // Ignore silence
+            // Ignore silence error and allow user to restart manually if needed
+            // Don't show error to UI to avoid annoyance
+            setIsListening(false);
           } else {
             setError("Error hearing voice. Please try again.");
           }
@@ -155,7 +158,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         recognitionRef.current.stop();
       }
     };
-  }, [isOpen, language]); // Re-init if language changes
+  }, [isOpen]); 
 
   // Re-parse whenever transcript or settings change
   useEffect(() => {
@@ -179,8 +182,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       }
       
       try {
-        // Update language before starting
-        if (recognitionRef.current) recognitionRef.current.lang = language;
         recognitionRef.current?.start();
       } catch (e) {
         console.error("Failed to start recognition", e);
@@ -188,25 +189,17 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     }
   };
 
-  // Convert word-numbers to digits (e.g. "ten" -> 10, "do" -> 2)
+  // Convert word-numbers to digits (e.g. "ten" -> 10)
   const normalizeNumbers = (text: string): string => {
     const map: Record<string, string> = {
         'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5',
         'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10',
         'eleven': '11', 'twelve': '12', 'twenty': '20', 'thirty': '30',
         'forty': '40', 'fifty': '50', 'sixty': '60', 'seventy': '70',
-        'eighty': '80', 'ninety': '90', 'hundred': '100',
-        // Hindi/Hinglish Common
-        'ek': '1', 'do': '2', 'teen': '3', 'char': '4', 'paanch': '5', 'panch': '5',
-        'che': '6', 'saat': '7', 'aath': '8', 'nau': '9', 'das': '10',
-        'gyarah': '11', 'barah': '12', 'terah': '13', 'pandrah': '15',
-        'bees': '20', 'tees': '30', 'pachas': '50', 'sau': '100'
+        'eighty': '80', 'ninety': '90', 'hundred': '100'
     };
     
-    // Replace Devanagari Digits
-    let clean = text.replace(/[०-९]/g, (d) => "0123456789"['०１２３４５６７８９'.indexOf(d)] || d);
-
-    return clean.split(' ').map(word => map[word.toLowerCase()] || word).join(' ');
+    return text.split(' ').map(word => map[word.toLowerCase()] || word).join(' ');
   };
 
   // Apply Domain Specific Corrections (UPSC -> POP)
@@ -234,15 +227,15 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     let rate = 0;
     let floor = manualFloor;
   
-    // Normalize Phonetic Matches for "By/X" and "Rate"
+    // 3. Normalize Phonetic Matches for "By/X" and "Rate" keywords
+    // We do NOT remove currency words yet, as we need them for rate detection
     let lower = description.toLowerCase()
         .replace(/\b(buy|bye|bai|be|into|cross|multiply|guna)\b/g, 'x')
         .replace(/\b(ret|red|kimat|bhav|bhaav|ka)\b/g, 'rate')
-        .replace(/\b(rupees?|rupaye|rs)\b/g, '') // remove currency suffix
         .replace(/\b(lamba|lambai|length)\b/g, '')
         .replace(/\b(chouda|choudai|width)\b/g, '');
 
-    // 3. Detect Floor (if not manually selected)
+    // 4. Detect Floor (if not manually selected)
     if (!floor) {
         if (lower.match(/\b(ground|gf)\b/)) floor = 'Ground Floor';
         else if (lower.match(/\b(first|1st|ff|pehla)\b/)) floor = '1st Floor';
@@ -252,18 +245,28 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         else if (lower.match(/\b(basement)\b/)) floor = 'Basement';
     }
 
-    // 4. Detect Rate (Aggressive)
-    // Matches: "rate 50", "@50", "50 rate", "price 50"
-    const rateRegex = /(?:rate|price|cost|@|at)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rate|price)/i;
-    const rateMatch = lower.match(rateRegex);
-    
-    if (rateMatch) {
-      rate = parseFloat(rateMatch[1] || rateMatch[2]);
-      // Remove the found rate from string to avoid confusing dimensions
-      lower = lower.replace(rateMatch[0], '').trim();
+    // 5. Detect Rate (Improved "Responding" Capability)
+    // Priority A: Rate with Currency Suffix/Prefix (e.g. "50 rupees", "rs 50")
+    // This solves "10 by 12 50 rupees" where "50" was previously mistaken for a dimension
+    const currencyRateRegex = /(\d+(?:\.\d+)?)\s*(?:rs|rupees?|rupaye)|(?:rs|rupees?|rupaye)\s*(\d+(?:\.\d+)?)/i;
+    const currencyMatch = lower.match(currencyRateRegex);
+    if (currencyMatch) {
+        rate = parseFloat(currencyMatch[1] || currencyMatch[2]);
+        lower = lower.replace(currencyMatch[0], '').trim();
     }
 
-    // 5. Detect Dimensions based on Unit
+    // Priority B: Rate with keywords (e.g. "rate 50", "@50")
+    if (rate === 0) {
+        const rateRegex = /(?:rate|price|cost|@|at)\s*[:\-\s]*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rate|price)/i;
+        const rateMatch = lower.match(rateRegex);
+        
+        if (rateMatch) {
+          rate = parseFloat(rateMatch[1] || rateMatch[2]);
+          lower = lower.replace(rateMatch[0], '').trim();
+        }
+    }
+
+    // 6. Detect Dimensions based on Unit
     const numbers = (lower.match(/(\d+(\.\d+)?)/g) || []).map(Number);
 
     if (unitMode === 'sq.ft') {
@@ -294,11 +297,11 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         length = 0; width = 0;
     }
   
-    // 6. Cleanup Description
-    // Remove numbers used for dimensions/rate from description text
+    // 7. Cleanup Description
+    // Now safe to remove currency words and unit words
     let cleanDesc = cleanText
       .replace(/\b(ground|first|second|third|fourth|basement|floor)\b/gi, '')
-      .replace(/\b(rate|price|bhav|rs|rupees)\b/gi, '')
+      .replace(/\b(rate|price|bhav|rs|rupees|rupaye)\b/gi, '')
       .replace(/\b(sq\.?ft|rft|nos|pieces)\b/gi, '')
       .replace(/[0-9]/g, '') // Remove digits
       .replace(/[^\w\s]/gi, '') // Remove special chars
@@ -358,22 +361,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           {/* Controls Grid */}
           <div className="w-full mb-6 space-y-4">
              
-             <div className="grid grid-cols-2 gap-4">
-                {/* Language Toggle */}
-                <div>
-                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 block text-left">Language</label>
-                   <button 
-                     onClick={() => setLanguage(l => l === 'en-IN' ? 'hi-IN' : 'en-IN')}
-                     className="w-full p-2.5 flex items-center justify-between bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700/50 transition"
-                   >
-                      <span className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
-                         <Languages className="w-4 h-4 text-indigo-500" />
-                         {language === 'en-IN' ? 'Hinglish (India)' : 'Hindi (हिंदी)'}
-                      </span>
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
-                   </button>
-                </div>
-
+             <div className="grid grid-cols-1 gap-4">
                 {/* Floor Selector */}
                 <div>
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 block text-left">Floor</label>
@@ -441,7 +429,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           </button>
 
           <p className="mt-4 h-6 text-sm font-medium text-indigo-600 dark:text-indigo-400">
-            {isListening ? (language === 'hi-IN' ? "सुन रहा हूँ..." : t.listening) : (transcript ? "Tap text to edit" : "Tap mic to start")}
+            {isListening ? t.listening : (transcript ? "Tap text to edit" : "Tap mic to start")}
           </p>
 
           {/* Transcript Editable Display */}
