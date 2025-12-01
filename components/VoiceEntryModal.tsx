@@ -52,10 +52,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                 currentPhrase += event.results[i][0].transcript;
              }
           }
-          // We handle the actual appending in 'onend' or via state update logic below if needed,
-          // but for interim visual feedback:
-          const interim = event.results[event.results.length - 1][0].transcript;
-          // We don't set transcript here to avoid jitter, we rely on the final result logic
         };
         
         // Better handling for non-continuous mode
@@ -310,7 +306,11 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="absolute inset-0" onClick={onClose}></div>
 
-      <div className="bg-white dark:bg-slate-900 w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden border-t border-slate-200 dark:border-slate-800 sm:border transition-all animate-slide-up safe-area-bottom">
+      {/* Added onClick stopPropagation to prevent modal close when clicking inside */}
+      <div 
+        className="bg-white dark:bg-slate-900 w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden border-t border-slate-200 dark:border-slate-800 sm:border transition-all animate-slide-up safe-area-bottom"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         <div className="w-full flex justify-center pt-3 pb-1 sm:hidden" onClick={onClose}>
            <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
