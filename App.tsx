@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile } from './types';
@@ -874,6 +875,24 @@ const App: React.FC = () => {
   // Check if current unit is linear
   const isLinear = ['rft', 'r.mt'].includes(currentItem.unit || '');
 
+  // Dynamic grid class for Amount field to ensure responsive layout
+  const getAmountGridClass = () => {
+      if (['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(currentItem.unit || '')) {
+          // Area: Mobile shared row, Desktop fill remaining 2 cols (1+1+1+1+1 + 2 = 7)
+          return "col-span-1 sm:col-span-2";
+      }
+      if (['cu.ft', 'cu.mt', 'brass'].includes(currentItem.unit || '')) {
+          // Volume: Mobile full row, Desktop fill remaining 1 col (1+1+1+1+1+1 + 1 = 7)
+          return "col-span-2 sm:col-span-1";
+      }
+      if (['rft', 'r.mt'].includes(currentItem.unit || '')) {
+          // Linear: Mobile full row, Desktop fill remaining 3 cols (1+1+1+1 + 3 = 7)
+          return "col-span-2 sm:col-span-3";
+      }
+      // Simple: Mobile full row, Desktop fill remaining 5 cols (1+1 + 5 = 7)
+      return "col-span-2 sm:col-span-5";
+  };
+
   if (isLoadingAuth) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 text-indigo-600"><div className="animate-spin text-2xl"><Loader2 className="w-10 h-10 animate-spin" /></div></div>;
   }
@@ -1227,7 +1246,7 @@ const App: React.FC = () => {
                     </div>
                 )}
                 
-                <div className="col-span-1 sm:col-span-1 flex items-end">
+                <div className={`${getAmountGridClass()} flex items-end`}>
                    <div className="w-full h-[46px] bg-slate-900 dark:bg-black px-3 rounded-xl border border-transparent text-right font-mono font-bold text-green-400 flex items-center justify-end shadow-inner tracking-widest text-lg overflow-hidden">
                       {calculateAmount(currentItem.length || 0, currentItem.width || 0, currentItem.height || 0, currentItem.quantity || 1, currentItem.rate || 0, currentItem.unit || 'sq.ft').toFixed(0)}
                    </div>
