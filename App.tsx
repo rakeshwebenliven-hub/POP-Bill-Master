@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Download, FileText, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, FileDown, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, AlertTriangle, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Plus, Trash2, Download, FileText, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, FileDown, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, AlertTriangle, Loader2, Circle } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile } from './types';
 import { APP_TEXT, SUBSCRIPTION_PLANS, CONSTRUCTION_UNITS } from './constants';
 import { generateExcel } from './services/excelService';
@@ -13,6 +13,128 @@ import CalculatorModal from './components/CalculatorModal';
 import VoiceEntryModal from './components/VoiceEntryModal';
 import OnboardingFlow from './components/OnboardingFlow';
 import SubscriptionPlans from './components/SubscriptionPlans';
+
+interface SwipeableItemProps {
+  item: BillItem;
+  index: number;
+  onDelete: (id: string) => void;
+  onEdit: (item: BillItem) => void;
+  onTogglePaid: (id: string) => void;
+}
+
+// --- Swipeable Item Component ---
+const SwipeableItem: React.FC<SwipeableItemProps> = ({ 
+  item, 
+  index, 
+  onDelete, 
+  onEdit, 
+  onTogglePaid 
+}) => {
+  const [startX, setStartX] = useState<number | null>(null);
+  const [offsetX, setOffsetX] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const threshold = -100; // px to trigger delete
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setStartX(e.touches[0].clientX);
+    setIsSwiping(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (startX === null) return;
+    const currentX = e.touches[0].clientX;
+    const diff = currentX - startX;
+    
+    // Only allow left swipe
+    if (diff < 0) {
+      setOffsetX(diff);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (offsetX < threshold) {
+      // Trigger delete if swiped far enough
+      onDelete(item.id);
+    } 
+    // Reset
+    setOffsetX(0);
+    setStartX(null);
+    setIsSwiping(false);
+  };
+
+  return (
+    <div className="relative overflow-hidden mb-0">
+      {/* Background (Delete Action) */}
+      <div className="absolute inset-0 bg-red-500 flex items-center justify-end px-6 rounded-none sm:rounded-lg">
+        <Trash2 className="w-6 h-6 text-white" />
+      </div>
+
+      {/* Foreground (Content) */}
+      <div 
+        className={`relative bg-white dark:bg-slate-900 p-4 border-b sm:border border-slate-100 dark:border-slate-800 sm:rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex justify-between items-start group ${isSwiping ? '' : 'transition-transform duration-300'}`}
+        style={{ transform: `translateX(${offsetX}px)` }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+          <div className="flex gap-4 w-full">
+              {/* Toggle Paid Status */}
+              <button 
+                onClick={(e) => { e.stopPropagation(); onTogglePaid(item.id); }}
+                className="shrink-0 mt-1"
+              >
+                {item.isPaid ? (
+                   <CheckCircle2 className="w-8 h-8 text-green-500 fill-green-100 dark:fill-green-900" />
+                ) : (
+                   <Circle className="w-8 h-8 text-slate-300 dark:text-slate-600 hover:text-indigo-500 transition-colors" />
+                )}
+              </button>
+
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 flex-wrap mb-1">
+                  <span className={`${item.isPaid ? 'line-through text-slate-400 dark:text-slate-500' : ''}`}>
+                    {item.description}
+                  </span>
+                  {item.floor && <span className="text-[10px] uppercase font-bold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded tracking-wide">{item.floor}</span>}
+                  {item.isPaid && <span className="text-[10px] uppercase font-bold bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded tracking-wide">Paid</span>}
+                </div>
+                <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-slate-700 dark:text-slate-300">
+                    {/* Adaptive Display based on Unit */}
+                    {['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(item.unit) && (
+                        <span>{item.length} x {item.width} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * item.width * (item.quantity || 1)).toFixed(2)}</span></span>
+                    )}
+                    {['cu.ft', 'cu.mt'].includes(item.unit) && (
+                        <span>{item.length}x{item.width}x{item.height} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * item.width * (item.height || 0) * (item.quantity || 1)).toFixed(2)}</span></span>
+                    )}
+                    {item.unit === 'brass' && (
+                        <span>{item.length}x{item.width}x{item.height} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} / 100 = <span className="font-bold">{((item.length * item.width * (item.height || 0) * (item.quantity || 1)) / 100).toFixed(2)}</span></span>
+                    )}
+                    {['rft', 'r.mt'].includes(item.unit) && (
+                        <span>{item.length} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * (item.quantity || 1)).toFixed(2)}</span></span>
+                    )}
+                    {!['sq.ft', 'sq.mt', 'sq.yd', 'acre', 'cu.ft', 'cu.mt', 'brass', 'rft', 'r.mt'].includes(item.unit) && (
+                        <span>{item.quantity}</span>
+                    )}
+                  </span>
+                  <span className="text-xs uppercase bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500">{item.unit}</span>
+                  <span className="text-slate-300 dark:text-slate-600">|</span>
+                  <span className="font-medium">@{item.rate}</span>
+                </div>
+              </div>
+          </div>
+          <div className="text-right pl-2">
+              <div className="font-bold text-slate-900 dark:text-white text-lg tracking-tight">₹{item.amount.toFixed(0)}</div>
+              <div className="flex justify-end gap-2 mt-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                <button onClick={() => onEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/30 rounded-lg transition"><Pencil className="w-4 h-4" /></button>
+                <button onClick={() => onDelete(item.id)} className="p-2 text-red-500 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
+              </div>
+          </div>
+      </div>
+    </div>
+  );
+};
+
 
 const App: React.FC = () => {
   // --- Auth & Subscription State ---
@@ -312,11 +434,12 @@ const App: React.FC = () => {
       unit: unt,
       rate: rt,
       amount: amount,
-      floor: currentItem.floor
+      floor: currentItem.floor,
+      isPaid: false
     };
 
     if (editingId) {
-       setItems(prev => prev.map(item => item.id === editingId ? newItem : item));
+       setItems(prev => prev.map(item => item.id === editingId ? { ...newItem, isPaid: item.isPaid } : item));
        setEditingId(null);
     } else {
         setItems(prev => [...prev, newItem]);
@@ -358,6 +481,12 @@ const App: React.FC = () => {
 
   const handleRemoveItem = (id: string) => {
     setItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleToggleItemPaid = (id: string) => {
+     setItems(prev => prev.map(item => 
+        item.id === id ? { ...item, isPaid: !item.isPaid } : item
+     ));
   };
 
   const handleVoiceConfirm = (parsed: ParsedBillItem) => {
@@ -749,8 +878,6 @@ const App: React.FC = () => {
         {/* --- DETAILS TAB --- */}
         {activeTab === 'details' && (
           <div className="space-y-6 animate-slide-up">
-            {/* ... (User Profile & Details Content remains same, no change needed here) ... */}
-            {/* Reusing existing Detail Tab content structure to save token space as logic hasn't changed here */}
             {/* User Profile Card */}
             <div className="card p-5">
                 <div className="flex justify-between items-center mb-5">
@@ -939,25 +1066,26 @@ const App: React.FC = () => {
               </div>
 
               {/* Universal Input Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-8 gap-4 mb-6">
-                <div className="col-span-2 sm:col-span-3">
+              <div className="grid grid-cols-2 sm:grid-cols-7 gap-4 mb-6">
+                <div className="col-span-2 sm:col-span-2">
                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.floor} <span className="text-slate-300 font-normal">(Opt)</span></label>
                    <input list="floors" placeholder="e.g. Ground Floor" className="input-field" value={currentItem.floor || ''} onChange={e => setCurrentItem({...currentItem, floor: e.target.value})} />
                    <datalist id="floors">{Object.values(t.floors).map(f => <option key={f} value={f} />)}</datalist>
                 </div>
-                <div className="col-span-2 sm:col-span-5">
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.description}</label>
-                  <input type="text" placeholder="e.g. Work Description" className="input-field" value={currentItem.description} onChange={e => setCurrentItem({...currentItem, description: e.target.value})} />
-                </div>
                 
                 {/* Dynamic Unit Dropdown */}
-                <div className={`col-span-2 ${isSimpleUnit ? 'sm:col-span-3' : 'sm:col-span-2'}`}>
+                <div className={`col-span-2 ${isSimpleUnit ? 'sm:col-span-2' : 'sm:col-span-1'}`}>
                   <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.unit}</label>
                   <select className="input-field appearance-none text-center" value={currentItem.unit} onChange={e => setCurrentItem({...currentItem, unit: e.target.value as any})}>
                     {CONSTRUCTION_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
                   </select>
                 </div>
 
+                <div className={`col-span-2 ${isSimpleUnit ? 'sm:col-span-3' : 'sm:col-span-4'}`}>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.description}</label>
+                  <input type="text" placeholder="e.g. Work Description" className="input-field" value={currentItem.description} onChange={e => setCurrentItem({...currentItem, description: e.target.value})} />
+                </div>
+                
                 {/* Dimensions (Hidden if Simple Unit) */}
                 {!isSimpleUnit && (
                     <>
@@ -1030,7 +1158,7 @@ const App: React.FC = () => {
                   </div>
                )}
                
-               <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
+               <div className="max-h-[400px] overflow-y-auto custom-scrollbar touch-pan-y">
                   {filteredItems.length === 0 ? (
                     <div className="p-12 text-center text-slate-400 dark:text-slate-600 flex flex-col items-center">
                        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4"><FileText className="w-8 h-8 opacity-40" /></div>
@@ -1039,47 +1167,14 @@ const App: React.FC = () => {
                   ) : (
                     <div className="divide-y divide-slate-100 dark:divide-slate-800">
                       {filteredItems.map((item, idx) => (
-                        <div key={item.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition flex justify-between items-start group animate-in fade-in duration-300">
-                          <div className="flex gap-4">
-                             <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center font-bold text-sm shrink-0 mt-0.5 font-mono">{idx + 1}</div>
-                             <div>
-                               <div className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 flex-wrap mb-1">
-                                 {item.description}
-                                 {item.floor && <span className="text-[10px] uppercase font-bold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded tracking-wide">{item.floor}</span>}
-                               </div>
-                               <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
-                                 <span className="font-medium text-slate-700 dark:text-slate-300">
-                                   {/* Adaptive Display based on Unit */}
-                                   {['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(item.unit) && (
-                                       <span>{item.length} x {item.width} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * item.width * (item.quantity || 1)).toFixed(2)}</span></span>
-                                   )}
-                                   {['cu.ft', 'cu.mt'].includes(item.unit) && (
-                                       <span>{item.length}x{item.width}x{item.height} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * item.width * (item.height || 0) * (item.quantity || 1)).toFixed(2)}</span></span>
-                                   )}
-                                   {item.unit === 'brass' && (
-                                       <span>{item.length}x{item.width}x{item.height} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} / 100 = <span className="font-bold">{((item.length * item.width * (item.height || 0) * (item.quantity || 1)) / 100).toFixed(2)}</span></span>
-                                   )}
-                                   {['rft', 'r.mt'].includes(item.unit) && (
-                                       <span>{item.length} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * (item.quantity || 1)).toFixed(2)}</span></span>
-                                   )}
-                                   {!['sq.ft', 'sq.mt', 'sq.yd', 'acre', 'cu.ft', 'cu.mt', 'brass', 'rft', 'r.mt'].includes(item.unit) && (
-                                       <span>{item.quantity}</span>
-                                   )}
-                                 </span>
-                                 <span className="text-xs uppercase bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500">{item.unit}</span>
-                                 <span className="text-slate-300 dark:text-slate-600">|</span>
-                                 <span className="font-medium">@{item.rate}</span>
-                               </div>
-                             </div>
-                          </div>
-                          <div className="text-right">
-                             <div className="font-bold text-slate-900 dark:text-white text-lg tracking-tight">₹{item.amount.toFixed(0)}</div>
-                             <div className="flex justify-end gap-2 mt-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => handleEditItem(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/30 rounded-lg transition"><Pencil className="w-4 h-4" /></button>
-                                <button onClick={() => handleRemoveItem(item.id)} className="p-2 text-red-500 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
-                             </div>
-                          </div>
-                        </div>
+                        <SwipeableItem 
+                            key={item.id} 
+                            item={item} 
+                            index={idx} 
+                            onDelete={handleRemoveItem} 
+                            onEdit={handleEditItem}
+                            onTogglePaid={handleToggleItemPaid}
+                        />
                       ))}
                     </div>
                   )}

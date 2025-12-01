@@ -10,6 +10,7 @@ export interface BillItem {
   rate: number;
   amount: number;
   floor?: string;
+  isPaid?: boolean; // New field for Item Status
 }
 
 export interface ClientDetails {
@@ -64,6 +65,7 @@ export interface ParsedBillItem {
   rate: number;
   unit: string; 
   floor?: string;
+  isPaid?: boolean;
 }
 
 export type PaymentStatus = 'Paid' | 'Pending' | 'Partial';
