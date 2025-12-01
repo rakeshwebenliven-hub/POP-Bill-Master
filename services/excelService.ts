@@ -17,6 +17,7 @@ export const generateExcel = (
 ) => {
   // Format Date
   const formattedDate = billDate ? new Date(billDate).toLocaleDateString() : new Date().toLocaleDateString();
+  const isPaid = paymentStatus === 'Paid';
 
   // Header Info
   const headerData = [
@@ -150,24 +151,14 @@ export const generateExcel = (
   const gstAmount = gstEnabled ? subTotal * (rate / 100) : 0;
   const grandTotal = subTotal + gstAmount;
   
-  // Calculate Total Advance
+  // Calculate Balance logic based on status
   const totalAdvance = payments.reduce((sum, p) => sum + p.amount, 0);
-  const balanceDue = grandTotal - totalAdvance;
+  const balanceDue = isPaid ? 0 : grandTotal - totalAdvance;
 
   // Footer - Calculate padding based on visible columns
   const totalCols = tableHeaders.length;
-  // Pad until the 'Total Qty' column
-  const padCols = totalCols - 5; // -5 accounts for Amount, Rate, TotalQty, Unit, Qty
-  const padding = Array(Math.max(0, padCols)).fill("");
-
-  const footerData = [
-    [],
-    [...padding, "Sub Total:", "", "", "", subTotal.toFixed(2)]
-  ];
-
   const footerPadding = Array(Math.max(0, totalCols - 2)).fill("");
 
-  // Re-define footer with precise alignment
   const smartFooter = [
       [],
       [...footerPadding, "Sub Total:", subTotal.toFixed(2)]
@@ -183,27 +174,37 @@ export const generateExcel = (
     [...footerPadding, "Grand Total:", grandTotal.toFixed(2)]
   );
 
-  if (payments.length > 0) {
-    payments.forEach(payment => {
-      const dateStr = payment.date ? `(${new Date(payment.date).toLocaleDateString()})` : '';
-      const note = payment.notes ? `(${payment.notes})` : '';
-      const label = `Advance ${dateStr} ${note}:`;
-      
-      smartFooter.push(
-        [...footerPadding, label, `-${payment.amount.toFixed(2)}`]
-      );
-    });
+  if (isPaid) {
+     smartFooter.push(
+       [...footerPadding, "Payment Received:", `-${grandTotal.toFixed(2)}`]
+     );
+  } else {
+      if (payments.length > 0) {
+        payments.forEach(payment => {
+          const dateStr = payment.date ? `(${new Date(payment.date).toLocaleDateString()})` : '';
+          const note = payment.notes ? `(${payment.notes})` : '';
+          const label = `Advance ${dateStr} ${note}:`;
+          
+          smartFooter.push(
+            [...footerPadding, label, `-${payment.amount.toFixed(2)}`]
+          );
+        });
 
-    if (payments.length > 1) {
-      smartFooter.push(
-        [...footerPadding, "Total Advance:", `-${totalAdvance.toFixed(2)}`]
-      );
-    }
+        if (payments.length > 1) {
+          smartFooter.push(
+            [...footerPadding, "Total Advance:", `-${totalAdvance.toFixed(2)}`]
+          );
+        }
+      }
   }
 
   smartFooter.push(
     [...footerPadding, "Balance Due:", balanceDue.toFixed(2)]
   );
+
+  if (isPaid) {
+      smartFooter.push([], [...footerPadding, "*** PAID ***", ""]);
+  }
 
   // Add Account Details
   if (contractor.bankDetails) {

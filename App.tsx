@@ -722,7 +722,7 @@ const App: React.FC = () => {
       return text;
   };
 
-  const handleShareText = () => {
+  const handleShareText = (status: PaymentStatus) => {
      const text = generateBillText();
      if (navigator.share) {
         navigator.share({ title: 'Bill Summary', text }).catch(() => {});
@@ -732,17 +732,17 @@ const App: React.FC = () => {
      }
   };
 
-  const handleShareFile = async (type: 'pdf' | 'excel') => {
+  const handleShareFile = async (type: 'pdf' | 'excel', status: PaymentStatus) => {
       const safeBillNum = (billNumber || 'Draft').replace(/[^a-z0-9]/gi, '_');
       const fileName = `Bill_${safeBillNum}.${type === 'pdf' ? 'pdf' : 'xlsx'}`;
       let blob: Blob;
 
       if (type === 'pdf') {
           // @ts-ignore - generatePDF updated to return blob
-          blob = generatePDF(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, paymentStatus, totals, billDate, true);
+          blob = generatePDF(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, true);
       } else {
           // @ts-ignore - generateExcel updated to return blob
-          blob = generateExcel(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, paymentStatus, billDate, true);
+          blob = generateExcel(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, billDate, true);
       }
 
       if (navigator.canShare && navigator.canShare({ files: [new File([blob], fileName, { type: blob.type })] })) {
@@ -763,6 +763,17 @@ const App: React.FC = () => {
           a.download = fileName;
           a.click();
           showToast(`Downloaded ${fileName} (Sharing not supported on this device)`);
+      }
+      setIsShareModalOpen(false);
+  };
+
+  const handleDownloadFile = (type: 'pdf' | 'excel', status: PaymentStatus) => {
+      const safeBillNum = (billNumber || 'Draft').replace(/[^a-z0-9]/gi, '_');
+      
+      if (type === 'pdf') {
+          generatePDF(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, false);
+      } else {
+          generateExcel(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, billDate, false);
       }
       setIsShareModalOpen(false);
   };
@@ -1330,11 +1341,9 @@ const App: React.FC = () => {
 
       {/* --- BOTTOM ACTION BAR --- */}
       <div className="fixed bottom-0 left-0 right-0 glass-panel z-40 safe-area-bottom pb-6 sm:pb-3 shadow-[0_-8px_30px_rgba(0,0,0,0.12)]">
-         <div className="max-w-4xl mx-auto p-3 grid grid-cols-2 sm:flex sm:justify-end gap-3">
-            <button onClick={() => setIsShareModalOpen(true)} className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition active:scale-95 shadow-sm border border-slate-200 dark:border-slate-700"><Share2 className="w-5 h-5" /> {t.share}</button>
+         <div className="max-w-4xl mx-auto p-3 grid grid-cols-2 gap-3">
+            <button onClick={() => setIsShareModalOpen(true)} className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition active:scale-95 shadow-sm border border-slate-200 dark:border-slate-700" disabled={items.length === 0}><Share2 className="w-5 h-5" /> Export / Share</button>
             <button onClick={handleSaveBill} className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-blue-600 dark:bg-blue-600 text-white hover:bg-blue-700 dark:hover:bg-blue-500 transition shadow-lg shadow-blue-200 dark:shadow-none active:scale-95"><Save className="w-5 h-5" /> {t.saveBill}</button>
-            <button onClick={() => generatePDF(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, paymentStatus, totals, billDate)} className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-red-600 dark:bg-red-600 text-white hover:bg-red-700 dark:hover:bg-red-500 shadow-lg shadow-red-200 dark:shadow-none transition active:scale-95 disabled:opacity-50 disabled:shadow-none" disabled={items.length === 0}><FileDown className="w-5 h-5" /> PDF</button>
-            <button onClick={() => generateExcel(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, paymentStatus, billDate)} className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-green-600 dark:bg-green-600 text-white hover:bg-green-700 dark:hover:bg-green-500 shadow-lg shadow-green-200 dark:shadow-none transition active:scale-95 disabled:opacity-50 disabled:shadow-none" disabled={items.length === 0}><Download className="w-5 h-5" /> Excel</button>
          </div>
       </div>
 
@@ -1345,9 +1354,11 @@ const App: React.FC = () => {
       <ShareModal 
         isOpen={isShareModalOpen} 
         onClose={() => setIsShareModalOpen(false)}
-        onShareText={handleShareText}
-        onSharePdf={() => handleShareFile('pdf')}
-        onShareExcel={() => handleShareFile('excel')}
+        onShareText={(status) => handleShareText(status)}
+        onSharePdf={(status) => handleShareFile('pdf', status)}
+        onShareExcel={(status) => handleShareFile('excel', status)}
+        onDownloadPdf={(status) => handleDownloadFile('pdf', status)}
+        onDownloadExcel={(status) => handleDownloadFile('excel', status)}
         previewText={generateBillText()}
       />
     </div>

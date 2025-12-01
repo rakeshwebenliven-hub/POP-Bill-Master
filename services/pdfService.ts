@@ -24,6 +24,10 @@ export const generatePDF = (
   const formattedDate = billDate ? new Date(billDate).toLocaleDateString() : new Date().toLocaleDateString();
   const primaryColor = [79, 70, 229] as [number, number, number];
 
+  // Logic for Paid Status
+  const isPaid = paymentStatus === 'Paid';
+  const displayBalance = isPaid ? 0 : totals.balance;
+
   let yPos = 20;
 
   if (contractor.logo) {
@@ -77,6 +81,14 @@ export const generatePDF = (
   
   doc.text(`Bill No: ${billNumber}`, pageWidth - 14, 35, { align: "right" });
   doc.text(`Date: ${formattedDate}`, pageWidth - 14, 40, { align: "right" });
+
+  // Paid Status Stamp
+  if (isPaid) {
+      doc.setTextColor(22, 163, 74); // Green
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("PAID", pageWidth - 14, 50, { align: "right" });
+  }
   
   yPos = 65;
   
@@ -190,7 +202,7 @@ export const generatePDF = (
   // @ts-ignore
   let finalY = doc.lastAutoTable.finalY + 10;
   
-  // Footer calculation logic (same as before)
+  // Footer calculation logic
   let addressHeight = 0;
   if (contractor.bankDetails?.branchAddress) {
       const splitAddr = doc.splitTextToSize(`Address: ${contractor.bankDetails.branchAddress}`, 100);
@@ -237,31 +249,42 @@ export const generatePDF = (
   doc.text(totals.grandTotal.toFixed(2), valueX, finalY, { align: "right" });
   finalY += 8;
 
-  if (payments.length > 0) {
-     doc.setFont("helvetica", "normal");
-     doc.setTextColor(22, 163, 74); 
-     
-     payments.forEach((payment) => {
-        const dateStr = payment.date ? new Date(payment.date).toLocaleDateString() : '';
-        const note = payment.notes ? `(${payment.notes})` : '';
-        const label = dateStr ? `Advance Received ${dateStr} ${note}:` : `Advance Received ${note}:`;
-        
-        let cleanLabel = label.length > 35 ? label.substring(0, 32) + '...' : label;
-        
-        doc.text(cleanLabel, rightColX, finalY);
-        doc.text(`-${payment.amount.toFixed(2)}`, valueX, finalY, { align: "right" });
-        finalY += 6;
-     });
-     finalY += 2;
+  if (isPaid) {
+    // If PAID selected: Show Payment Received = Grand Total
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(22, 163, 74); 
+    doc.text("Payment Received:", rightColX, finalY);
+    doc.text(`-${totals.grandTotal.toFixed(2)}`, valueX, finalY, { align: "right" });
+    finalY += 8;
+  } else {
+    // If UNPAID/Pending: Show advances if any
+    if (payments.length > 0) {
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(22, 163, 74); 
+      
+      payments.forEach((payment) => {
+         const dateStr = payment.date ? new Date(payment.date).toLocaleDateString() : '';
+         const note = payment.notes ? `(${payment.notes})` : '';
+         const label = dateStr ? `Advance Received ${dateStr} ${note}:` : `Advance Received ${note}:`;
+         
+         let cleanLabel = label.length > 35 ? label.substring(0, 32) + '...' : label;
+         
+         doc.text(cleanLabel, rightColX, finalY);
+         doc.text(`-${payment.amount.toFixed(2)}`, valueX, finalY, { align: "right" });
+         finalY += 6;
+      });
+      finalY += 2;
+   }
   }
 
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   doc.text("Balance Due:", rightColX, finalY);
-  doc.text(`INR ${totals.balance.toFixed(0)}`, valueX, finalY, { align: "right" });
+  doc.text(`INR ${displayBalance.toFixed(0)}`, valueX, finalY, { align: "right" });
 
-  let currentLeftY = finalY - (totals.advance > 0 ? (payments.length * 6) + 8 : 8) - (gstEnabled ? 6 : 0) - 6; 
+  let currentLeftY = finalY - (totals.advance > 0 && !isPaid ? (payments.length * 6) + 8 : 8) - (gstEnabled ? 6 : 0) - 6; 
+  if (isPaid) currentLeftY = finalY - 16; // Adjust if showing single payment line
   currentLeftY = Math.max(currentLeftY, doc.lastAutoTable.finalY + 10);
   
   if (finalY < 100 && doc.internal.getNumberOfPages() > 1) {

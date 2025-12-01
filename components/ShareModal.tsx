@@ -1,14 +1,17 @@
 
 import React, { useState } from 'react';
-import { X, FileText, FileDown, Table, Copy, Check, Share2, Loader2 } from 'lucide-react';
+import { X, FileText, FileDown, Table, Copy, Check, Share2, Loader2, Download, DollarSign } from 'lucide-react';
 import { APP_TEXT } from '../constants';
+import { PaymentStatus } from '../types';
 
 interface ShareModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onShareText: () => void;
-  onSharePdf: () => Promise<void>;
-  onShareExcel: () => Promise<void>;
+  onShareText: (status: PaymentStatus) => void;
+  onSharePdf: (status: PaymentStatus) => Promise<void>;
+  onShareExcel: (status: PaymentStatus) => Promise<void>;
+  onDownloadPdf: (status: PaymentStatus) => void;
+  onDownloadExcel: (status: PaymentStatus) => void;
   previewText: string;
 }
 
@@ -18,10 +21,13 @@ const ShareModal: React.FC<ShareModalProps> = ({
   onShareText, 
   onSharePdf, 
   onShareExcel,
+  onDownloadPdf,
+  onDownloadExcel,
   previewText 
 }) => {
   const [copied, setCopied] = useState(false);
   const [sharingType, setSharingType] = useState<string | null>(null);
+  const [status, setStatus] = useState<PaymentStatus>('Pending');
   const t = APP_TEXT;
 
   if (!isOpen) return null;
@@ -32,10 +38,10 @@ const ShareModal: React.FC<ShareModalProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const wrapShare = async (type: string, fn: () => Promise<void> | void) => {
+  const wrapShare = async (type: string, fn: (s: PaymentStatus) => Promise<void> | void) => {
     setSharingType(type);
     try {
-        await fn();
+        await fn(status);
     } finally {
         setSharingType(null);
     }
@@ -48,71 +54,76 @@ const ShareModal: React.FC<ShareModalProps> = ({
         <div className="p-4 bg-indigo-600 dark:bg-indigo-950 text-white flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Share2 className="w-5 h-5 text-indigo-200" />
-            <h3 className="font-semibold text-lg">{t.shareModalTitle}</h3>
+            <h3 className="font-semibold text-lg">Export & Share</h3>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-indigo-500 dark:hover:bg-indigo-800 rounded-full transition">
             <X className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-5">
           
-          {/* Options Grid */}
-          <div className="grid grid-cols-1 gap-3">
+          {/* Status Selection */}
+          <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+             <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3 block">Bill Status for this Export</label>
+             <div className="flex bg-white dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
+                <button 
+                  onClick={() => setStatus('Pending')}
+                  className={`flex-1 py-2 rounded-md text-sm font-bold transition flex items-center justify-center gap-2 ${status === 'Pending' ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                >
+                   Unpaid (Due)
+                </button>
+                <button 
+                  onClick={() => setStatus('Paid')}
+                  className={`flex-1 py-2 rounded-md text-sm font-bold transition flex items-center justify-center gap-2 ${status === 'Paid' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                >
+                   Paid (Received) <Check className="w-4 h-4" />
+                </button>
+             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+             {/* Download Buttons */}
              <button 
-                onClick={() => wrapShare('text', onShareText)}
-                className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition shadow-sm text-left group"
+                onClick={() => onDownloadPdf(status)}
+                className="col-span-1 flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-slate-100 dark:border-slate-800 hover:border-red-200 dark:hover:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-900/10 transition group"
              >
-                <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                   <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                   <h4 className="font-bold text-slate-800 dark:text-slate-100">{t.shareOptions.text}</h4>
-                   <p className="text-xs text-slate-500 dark:text-slate-400">Share via WhatsApp / Message</p>
-                </div>
+                <FileDown className="w-8 h-8 text-red-500 group-hover:scale-110 transition-transform" />
+                <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">Download PDF</span>
              </button>
 
              <button 
-                onClick={() => wrapShare('pdf', onSharePdf)}
-                disabled={!!sharingType}
-                className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition shadow-sm text-left group disabled:opacity-50"
+                onClick={() => onDownloadExcel(status)}
+                className="col-span-1 flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-slate-100 dark:border-slate-800 hover:border-green-200 dark:hover:border-green-900/50 hover:bg-green-50 dark:hover:bg-green-900/10 transition group"
              >
-                <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                   {sharingType === 'pdf' ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileDown className="w-5 h-5" />}
-                </div>
-                <div>
-                   <h4 className="font-bold text-slate-800 dark:text-slate-100">{t.shareOptions.pdf}</h4>
-                   <p className="text-xs text-slate-500 dark:text-slate-400">Professional PDF Invoice</p>
-                </div>
-             </button>
-
-             <button 
-                onClick={() => wrapShare('excel', onShareExcel)}
-                disabled={!!sharingType}
-                className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition shadow-sm text-left group disabled:opacity-50"
-             >
-                <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 flex items-center justify-center group-hover:scale-110 transition-transform">
-                   {sharingType === 'excel' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Table className="w-5 h-5" />}
-                </div>
-                <div>
-                   <h4 className="font-bold text-slate-800 dark:text-slate-100">{t.shareOptions.excel}</h4>
-                   <p className="text-xs text-slate-500 dark:text-slate-400">Editable Excel Spreadsheet</p>
-                </div>
+                <Download className="w-8 h-8 text-green-600 group-hover:scale-110 transition-transform" />
+                <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">Download Excel</span>
              </button>
           </div>
 
-          <div className="border-t border-slate-100 dark:border-slate-800 pt-4 mt-2">
-             <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">{t.sharePreview}</span>
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
+             <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Share via App</p>
+             <div className="grid grid-cols-1 gap-3">
                 <button 
-                   onClick={handleCopy} 
-                   className="text-xs flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
+                    onClick={() => wrapShare('text', onShareText)}
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left group"
                 >
-                   {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />} {t.copyToClipboard}
+                    <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 group-hover:bg-green-100 dark:group-hover:bg-green-900/30 group-hover:text-green-600">
+                       <FileText className="w-4 h-4" />
+                    </div>
+                    <span className="font-medium text-slate-700 dark:text-slate-200">Share Text Summary</span>
                 </button>
-             </div>
-             <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-sm font-mono text-slate-600 dark:text-slate-300 whitespace-pre-wrap max-h-32 overflow-y-auto custom-scrollbar">
-                {previewText}
+
+                <button 
+                    onClick={() => wrapShare('pdf', onSharePdf)}
+                    disabled={!!sharingType}
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left group disabled:opacity-50"
+                >
+                    <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 group-hover:bg-red-100 dark:group-hover:bg-red-900/30 group-hover:text-red-600">
+                       {sharingType === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+                    </div>
+                    <span className="font-medium text-slate-700 dark:text-slate-200">Share PDF File</span>
+                </button>
              </div>
           </div>
 
