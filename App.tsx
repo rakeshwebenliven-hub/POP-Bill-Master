@@ -329,11 +329,13 @@ const App: React.FC = () => {
     }
   }, [user]);
 
+  // Auto-save effect
   useEffect(() => {
     if (!user) return;
     
+    // Auto-save to Draft
     if (items.length > 0 || client.name || contractor.companyName) {
-      saveDraft({
+      const billData = {
         billNumber,
         billDate,
         paymentStatus,
@@ -345,7 +347,22 @@ const App: React.FC = () => {
         advanceAmount: '', 
         payments,
         disclaimer
-      });
+      };
+      
+      saveDraft(billData);
+      
+      // Auto-save to History (Real-time update if bill exists)
+      // Check if this bill number already exists in history to update it in real-time
+      const history = getHistory();
+      const existingIndex = history.findIndex(b => b.billNumber === billNumber);
+      
+      if (existingIndex >= 0) {
+         saveToHistory(billData);
+         // Silent update of history items to reflect changes in UI if needed, 
+         // though mainly we want the persistence.
+         // We don't call setHistoryItems here to avoid potential render loops/flicker 
+         // unless we are in the history view, but for data safety it's saved.
+      }
     }
   }, [items, client, contractor, gstEnabled, gstRate, billNumber, billDate, paymentStatus, payments, disclaimer, user]);
 
