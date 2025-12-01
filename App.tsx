@@ -559,7 +559,7 @@ const App: React.FC = () => {
       items,
       gstEnabled,
       gstRate,
-      advanceAmount: '',
+      advanceAmount: '', 
       payments,
       disclaimer
     });
@@ -1193,6 +1193,11 @@ const App: React.FC = () => {
                   <input type="number" inputMode="decimal" min="1" placeholder="1" className="input-field text-center" value={currentItem.quantity || ''} onChange={e => setCurrentItem({...currentItem, quantity: parseFloat(e.target.value)})} onFocus={(e) => e.target.select()} />
                 </div>
                 
+                <div className="col-span-1">
+                   <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.rate}</label>
+                   <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center font-bold text-slate-700 dark:text-white" value={currentItem.rate || ''} onChange={e => setCurrentItem({...currentItem, rate: parseFloat(e.target.value)})} onFocus={(e) => e.target.select()} />
+                </div>
+
                 {/* Read-Only Total Calc (Area/Volume/Total Qty) */}
                 {!isSimpleUnit && (
                     <div className="col-span-1">
@@ -1203,11 +1208,7 @@ const App: React.FC = () => {
                     </div>
                 )}
                 
-                <div className="col-span-1">
-                   <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.rate}</label>
-                   <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center font-bold text-slate-700 dark:text-white" value={currentItem.rate || ''} onChange={e => setCurrentItem({...currentItem, rate: parseFloat(e.target.value)})} onFocus={(e) => e.target.select()} />
-                </div>
-                <div className="col-span-2 sm:col-span-1 flex items-end">
+                <div className="col-span-1 sm:col-span-1 flex items-end">
                    <div className="w-full h-[46px] bg-slate-900 dark:bg-black px-3 rounded-xl border border-transparent text-right font-mono font-bold text-green-400 flex items-center justify-end shadow-inner tracking-widest text-lg overflow-hidden">
                       {calculateAmount(currentItem.length || 0, currentItem.width || 0, currentItem.height || 0, currentItem.quantity || 1, currentItem.rate || 0, currentItem.unit || 'sq.ft').toFixed(0)}
                    </div>
