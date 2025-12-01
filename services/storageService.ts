@@ -1,3 +1,4 @@
+
 import { SavedBillData, ContractorProfile, ContractorDetails, PaymentStatus } from '../types';
 
 const DRAFT_KEY = 'pop_bill_draft';
@@ -25,17 +26,45 @@ export const loadDraft = (): SavedBillData | null => {
 
 export const saveToHistory = (data: Omit<SavedBillData, 'id' | 'timestamp'>): SavedBillData => {
   const history = getHistory();
-  const newBill: SavedBillData = {
-    ...data,
-    id: Date.now().toString(),
-    timestamp: Date.now()
-  };
   
-  // Prepend to history (newest first)
-  const updatedHistory = [newBill, ...history];
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
-  
-  return newBill;
+  // Check if bill with same number exists
+  const existingIndex = history.findIndex(b => b.billNumber === data.billNumber);
+
+  if (existingIndex >= 0) {
+    // Update existing bill
+    const existingBill = history[existingIndex];
+    const updatedBill: SavedBillData = {
+      ...existingBill,
+      ...data,
+      // Keep original ID, but update timestamp to reflect modification
+      timestamp: Date.now()
+    };
+    
+    // Update in place
+    history[existingIndex] = updatedBill;
+    
+    // Move updated bill to top of list (optional, but good UX to show recent edits first)
+    // To do that, we remove it and unshift it. 
+    // If we want to keep position, just saving 'history' is enough.
+    // Let's move to top:
+    history.splice(existingIndex, 1);
+    history.unshift(updatedBill);
+    
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    return updatedBill;
+  } else {
+    // Create new bill
+    const newBill: SavedBillData = {
+      ...data,
+      id: Date.now().toString(),
+      timestamp: Date.now()
+    };
+    
+    // Prepend to history (newest first)
+    const updatedHistory = [newBill, ...history];
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
+    return newBill;
+  }
 };
 
 export const getHistory = (): SavedBillData[] => {

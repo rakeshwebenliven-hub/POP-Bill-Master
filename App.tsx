@@ -415,7 +415,7 @@ const App: React.FC = () => {
   }, [items, gstEnabled, gstRate, payments]);
 
   const handleSaveBill = () => {
-    const saved = saveToHistory({
+    saveToHistory({
       billNumber,
       billDate,
       paymentStatus,
@@ -428,7 +428,8 @@ const App: React.FC = () => {
       payments,
       disclaimer
     });
-    setHistoryItems(prev => [saved, ...prev]);
+    // Refresh history from storage instead of manual append to handle updates correctly
+    setHistoryItems(getHistory());
     alert(t.billSaved);
   };
 
