@@ -1,5 +1,4 @@
 
-
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { BillItem, ClientDetails, ContractorDetails, PaymentStatus, PaymentRecord } from '../types';
@@ -112,12 +111,16 @@ export const generatePDF = (
     let totalVal = 0;
     let dimString = "";
 
-    if (['sq.ft', 'sq.mt'].includes(item.unit)) {
+    if (['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(item.unit)) {
       totalVal = item.length * item.width * qty;
       dimString = `${item.length} x ${item.width}`;
     } else if (['cu.ft', 'cu.mt'].includes(item.unit)) {
       const h = item.height || 0;
       totalVal = item.length * item.width * h * qty;
+      dimString = `${item.length}x${item.width}x${h}`;
+    } else if (item.unit === 'brass') {
+      const h = item.height || 0;
+      totalVal = (item.length * item.width * h * qty) / 100;
       dimString = `${item.length}x${item.width}x${h}`;
     } else if (['rft', 'r.mt'].includes(item.unit)) {
       totalVal = item.length * qty;

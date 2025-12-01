@@ -1,5 +1,4 @@
 
-
 import * as XLSX from 'xlsx';
 import { BillItem, ClientDetails, ContractorDetails, PaymentStatus, PaymentRecord } from '../types';
 
@@ -59,7 +58,7 @@ export const generateExcel = (
     []
   );
 
-  // Check if any item uses height/depth (Volumetric)
+  // Check if any item uses height/depth (Volumetric or Brass)
   const hasHeight = items.some(item => (item.height && item.height > 0));
 
   // Table Headers
@@ -91,33 +90,41 @@ export const generateExcel = (
     let totalItemValue = 0;
     
     // Universal Calculation Engine
-    if (['sq.ft', 'sq.mt'].includes(item.unit)) {
+    if (['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(item.unit)) {
         // Area
         totalItemValue = item.length * item.width * quantity;
     } else if (['cu.ft', 'cu.mt'].includes(item.unit)) {
         // Volume
         const h = item.height || 0;
         totalItemValue = item.length * item.width * h * quantity;
+    } else if (item.unit === 'brass') {
+        // Brass = (L*W*H)/100
+        const h = item.height || 0;
+        totalItemValue = (item.length * item.width * h * quantity) / 100;
     } else if (['rft', 'r.mt'].includes(item.unit)) {
         // Linear
         totalItemValue = item.length * quantity;
     } else {
-        // Simple (Nos, Kg, Ton, Lsum, etc.)
+        // Simple (Nos, Kg, Ton, Lsum, Visit, etc.)
         totalItemValue = quantity; 
     }
     
     subTotal += item.amount;
 
+    // Determine which dimension fields are irrelevant for the unit
+    const isSimple = ['nos', 'pcs', 'kg', 'ton', 'lsum', 'point', 'hours', 'days', '%', 'bag', 'box', 'pkt', 'ltr', 'visit', 'month', 'kw', 'hp', 'set', 'quintal'].includes(item.unit);
+    const isLinear = ['rft', 'r.mt'].includes(item.unit);
+
     const row = [
       index + 1,
       item.floor || '',
       item.description,
-      ['nos', 'pcs', 'kg', 'ton', 'lsum', 'point', 'hours', 'days', '%', 'bag', 'box', 'pkt', 'ltr'].includes(item.unit) ? '-' : item.length,
-      ['rft', 'r.mt', 'nos', 'pcs', 'kg', 'ton', 'lsum', 'point', 'hours', 'days', '%', 'bag', 'box', 'pkt', 'ltr'].includes(item.unit) ? '-' : item.width
+      isSimple ? '-' : item.length,
+      (isSimple || isLinear) ? '-' : item.width
     ];
 
     if (hasHeight) {
-        row.push(['cu.ft', 'cu.mt'].includes(item.unit) ? (item.height || 0) : '-');
+        row.push((['cu.ft', 'cu.mt', 'brass'].includes(item.unit)) ? (item.height || 0) : '-');
     }
 
     row.push(

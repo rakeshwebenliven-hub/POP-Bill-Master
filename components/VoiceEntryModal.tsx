@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ParsedBillItem } from '../types';
 import { APP_TEXT, CONSTRUCTION_UNITS } from '../constants';
@@ -113,7 +112,8 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
 
     // Helper: Find Rate
     const extractRate = (txt: string): { val: number, cleanTxt: string } => {
-        const rateRegex = /(\d+(?:\.\d+)?)\s*(?:rs|rupees?)|(?:rs|rupees?)\s*(\d+(?:\.\d+)?)|(?:rate|price|@)\s*[:\-\s]*(\d+(?:\.\d+)?)/i;
+        // Negative lookahead to ensure we don't grab "12" from "10 by 12" as rate
+        const rateRegex = /(\d+(?:\.\d+)?)\s*(?:rs|rupees?)|(?:rs|rupees?)\s*(\d+(?:\.\d+)?)|(?:rate|price|@)\s*[:\-\s]*(\d+(?:\.\d+)?)(?!\s*x)(?!\s*\d)/i;
         const match = txt.match(rateRegex);
         if (match) {
             const val = parseFloat(match[1] || match[2] || match[3]);
@@ -122,15 +122,15 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         return { val: 0, cleanTxt: txt };
     };
 
-    // Check if unit is Volumetric (3D)
-    const isVolumetric = ['cu.ft', 'cu.mt'].includes(unitMode);
-    const isArea = ['sq.ft', 'sq.mt'].includes(unitMode);
+    // Check classification
+    const isVolumetric = ['cu.ft', 'cu.mt', 'brass'].includes(unitMode);
+    const isArea = ['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(unitMode);
     const isLinear = ['rft', 'r.mt'].includes(unitMode);
     const isSimple = !isVolumetric && !isArea && !isLinear;
 
     if (isSimple) {
         // Quantity First logic for simple units
-        const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items|bags|boxes|pkts|points|hrs|days|hours|kg|tons)/i; 
+        const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items|bags|boxes|pkts|points|hrs|days|hours|kg|tons|visits|months|sets|kw|hp|quintals)/i; 
         const qtyMatch = processingText.match(qtyRegex);
         if (qtyMatch) {
             quantity = parseInt(qtyMatch[1]);
@@ -158,6 +158,10 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                 length = numbers[0];
                 width = numbers[1];
                 height = numbers[2];
+            } else if (numbers.length === 2) {
+                // Sometimes people say 10 by 10 and assume H is handled elsewhere, but for Volumetric usually 3 needed.
+                length = numbers[0];
+                width = numbers[1];
             }
         } else if (isArea) {
              // Need 2 numbers: L x W
@@ -173,11 +177,19 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         }
     }
 
+    // Implicit rate check if rate is still 0 and we have a trailing number
+    if (rate === 0) {
+        const remainingNumbers = (processingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
+        if (remainingNumbers.length > 0) {
+            rate = remainingNumbers[remainingNumbers.length - 1]; // Assume last number is rate
+        }
+    }
+
     // Cleanup Description
     let cleanDesc = processingText
       .replace(/\b(ground|first|second|floor)\b/gi, '')
       .replace(/\b(rate|price|rs|rupees)\b/gi, '')
-      .replace(/\b(sq\.?ft|rft|nos|pieces|cu\.?ft)\b/gi, '')
+      .replace(/\b(sq\.?ft|rft|nos|pieces|cu\.?ft|brass)\b/gi, '')
       .replace(/[0-9]/g, '') 
       .replace(/[^\w\s]/gi, '') 
       .replace(/\s+/g, ' ')
@@ -191,7 +203,9 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
   const getHintText = () => {
      if (targetUnit === 'sq.ft') return t.voiceHints.sqft;
      if (targetUnit === 'cu.ft') return t.voiceHints.cuft;
+     if (targetUnit === 'brass') return t.voiceHints.brass;
      if (targetUnit === 'rft') return t.voiceHints.rft;
+     if (targetUnit === 'visit') return t.voiceHints.visit;
      return t.voiceHints.nos;
   };
 
@@ -280,11 +294,13 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                 </div>
                 <div>
                   <span className="text-xs text-indigo-700 dark:text-indigo-400 block">
-                    {['sq.ft','sq.mt'].includes(parsedItem.unit) ? 'Size (LxW)' : ['cu.ft','cu.mt'].includes(parsedItem.unit) ? 'Size (LxWxH)' : ['rft','r.mt'].includes(parsedItem.unit) ? 'Length' : 'Qty'}
+                    {['sq.ft','sq.mt','sq.yd','acre'].includes(parsedItem.unit) ? 'Size (LxW)' : 
+                     ['cu.ft','cu.mt','brass'].includes(parsedItem.unit) ? 'Size (LxWxH)' : 
+                     ['rft','r.mt'].includes(parsedItem.unit) ? 'Length' : 'Qty'}
                   </span>
                   <span className="font-semibold text-slate-800 dark:text-slate-100">
-                    {['sq.ft','sq.mt'].includes(parsedItem.unit) ? `${parsedItem.length} x ${parsedItem.width}` : 
-                     ['cu.ft','cu.mt'].includes(parsedItem.unit) ? `${parsedItem.length} x ${parsedItem.width} x ${parsedItem.height}` : 
+                    {['sq.ft','sq.mt','sq.yd','acre'].includes(parsedItem.unit) ? `${parsedItem.length} x ${parsedItem.width}` : 
+                     ['cu.ft','cu.mt','brass'].includes(parsedItem.unit) ? `${parsedItem.length} x ${parsedItem.width} x ${parsedItem.height}` : 
                      ['rft','r.mt'].includes(parsedItem.unit) ? `${parsedItem.length}` : `${parsedItem.quantity}`}
                   </span>
                 </div>
@@ -296,8 +312,9 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                     {/* Logic duplicated for display preview */}
                     {(() => {
                         let amt = 0;
-                        if(['sq.ft','sq.mt'].includes(parsedItem.unit)) amt = parsedItem.length * parsedItem.width * parsedItem.quantity * parsedItem.rate;
+                        if(['sq.ft','sq.mt','sq.yd','acre'].includes(parsedItem.unit)) amt = parsedItem.length * parsedItem.width * parsedItem.quantity * parsedItem.rate;
                         else if(['cu.ft','cu.mt'].includes(parsedItem.unit)) amt = parsedItem.length * parsedItem.width * (parsedItem.height||0) * parsedItem.quantity * parsedItem.rate;
+                        else if(parsedItem.unit === 'brass') amt = ((parsedItem.length * parsedItem.width * (parsedItem.height||0)) / 100) * parsedItem.quantity * parsedItem.rate;
                         else if(['rft','r.mt'].includes(parsedItem.unit)) amt = parsedItem.length * parsedItem.quantity * parsedItem.rate;
                         else amt = parsedItem.quantity * parsedItem.rate;
                         return (

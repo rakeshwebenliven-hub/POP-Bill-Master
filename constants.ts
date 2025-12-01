@@ -1,5 +1,4 @@
 
-
 export const APP_TEXT = {
   appTitle: "Contractor Bill Master",
   contractorDetails: "Contractor / Business Details",
@@ -135,7 +134,9 @@ export const APP_TEXT = {
     sqft: "Try: 'Wall Paint 10 by 12 rate 25'",
     rft: "Try: 'Pipe Work 100 feet rate 45'",
     nos: "Try: 'Switch Box 4 pieces rate 250'",
-    cuft: "Try: 'Concrete 10 by 10 by 2 rate 300'"
+    cuft: "Try: 'Concrete 10 by 10 by 2 rate 300'",
+    brass: "Try: 'Sand filling 10 by 10 by 5 rate 4000'",
+    visit: "Try: 'Site Visit 5 times rate 2000'"
   },
   listening: "Listening...",
   processing: "Processing...",
@@ -145,22 +146,46 @@ export const APP_TEXT = {
 
 // Comprehensive list of units for all trades
 export const CONSTRUCTION_UNITS = [
+  // Area
   { value: "sq.ft", label: "Sq.ft (Area)" },
-  { value: "rft", label: "R.ft (Linear)" },
-  { value: "cu.ft", label: "Cu.ft (Volume)" },
-  { value: "nos", label: "Nos/Pcs" },
   { value: "sq.mt", label: "Sq.Mtr (Area)" },
+  { value: "sq.yd", label: "Sq.Yard (Land)" },
+  { value: "acre", label: "Acre (Land)" },
+  
+  // Linear
+  { value: "rft", label: "R.ft (Linear)" },
   { value: "r.mt", label: "R.Mtr (Linear)" },
+  
+  // Volume / Civil
+  { value: "cu.ft", label: "Cu.ft (Volume)" },
   { value: "cu.mt", label: "Cu.Mtr (Volume)" },
+  { value: "brass", label: "Brass (100 Cu.ft)" },
+  
+  // Weight
   { value: "kg", label: "Kg (Weight)" },
   { value: "ton", label: "Ton (Weight)" },
+  { value: "quintal", label: "Quintal (100Kg)" },
+  
+  // Count / Simple
+  { value: "nos", label: "Nos/Pcs" },
   { value: "bag", label: "Bag" },
   { value: "box", label: "Box" },
   { value: "pkt", label: "Packet" },
   { value: "ltr", label: "Litre" },
+  
+  // MEP / Services
   { value: "point", label: "Point (Elec)" },
+  { value: "kw", label: "kW (Load)" },
+  { value: "hp", label: "HP (Motor)" },
+  { value: "set", label: "Set" },
+  
+  // Time / Service
   { value: "hours", label: "Hours" },
   { value: "days", label: "Days" },
+  { value: "month", label: "Month" },
+  { value: "visit", label: "Visit" },
+  
+  // Other
   { value: "lsum", label: "Lump Sum" },
   { value: "%", label: "% Cost" }
 ];

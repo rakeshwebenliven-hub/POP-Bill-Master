@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Download, FileText, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, FileDown, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, AlertTriangle, Loader2 } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile } from './types';
@@ -276,8 +275,9 @@ const App: React.FC = () => {
     const ht = parseFloat(String(h)) || 0;
     
     // Universal Logic
-    if (['sq.ft', 'sq.mt'].includes(unit)) return l * w * q;
+    if (['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(unit)) return l * w * q;
     if (['cu.ft', 'cu.mt'].includes(unit)) return l * w * ht * q;
+    if (unit === 'brass') return (l * w * ht * q) / 100;
     if (['rft', 'r.mt'].includes(unit)) return l * q;
     // For simple units (Nos, Kg, Ton, etc), return quantity
     return q; 
@@ -656,10 +656,10 @@ const App: React.FC = () => {
      };
   };
 
-  // Check if current unit is volumetric (requires height)
-  const isVolumetric = ['cu.ft', 'cu.mt'].includes(currentItem.unit || '');
+  // Check if current unit is volumetric (requires height) or Brass
+  const isVolumetric = ['cu.ft', 'cu.mt', 'brass'].includes(currentItem.unit || '');
   // Check if current unit is simple (no dimensions)
-  const isSimpleUnit = ['nos', 'kg', 'ton', 'lsum', 'point', 'hours', 'days', '%', 'bag', 'box', 'pkt', 'ltr'].includes(currentItem.unit || '');
+  const isSimpleUnit = ['nos', 'kg', 'ton', 'lsum', 'point', 'hours', 'days', '%', 'bag', 'box', 'pkt', 'ltr', 'visit', 'month', 'kw', 'hp', 'set', 'quintal'].includes(currentItem.unit || '');
   // Check if current unit is linear
   const isLinear = ['rft', 'r.mt'].includes(currentItem.unit || '');
 
@@ -971,7 +971,7 @@ const App: React.FC = () => {
                                 <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center" value={currentItem.width || ''} onChange={e => setCurrentItem({...currentItem, width: parseFloat(e.target.value)})} />
                             </div>
                         )}
-                        {/* Height Only for Volumetric */}
+                        {/* Height Only for Volumetric or Brass */}
                         {isVolumetric && (
                             <div className="col-span-1">
                                 <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.height}</label>
@@ -1049,16 +1049,19 @@ const App: React.FC = () => {
                                <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
                                  <span className="font-medium text-slate-700 dark:text-slate-300">
                                    {/* Adaptive Display based on Unit */}
-                                   {['sq.ft', 'sq.mt'].includes(item.unit) && (
+                                   {['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(item.unit) && (
                                        <span>{item.length} x {item.width} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * item.width * (item.quantity || 1)).toFixed(2)}</span></span>
                                    )}
                                    {['cu.ft', 'cu.mt'].includes(item.unit) && (
                                        <span>{item.length}x{item.width}x{item.height} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * item.width * (item.height || 0) * (item.quantity || 1)).toFixed(2)}</span></span>
                                    )}
+                                   {item.unit === 'brass' && (
+                                       <span>{item.length}x{item.width}x{item.height} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} / 100 = <span className="font-bold">{((item.length * item.width * (item.height || 0) * (item.quantity || 1)) / 100).toFixed(2)}</span></span>
+                                   )}
                                    {['rft', 'r.mt'].includes(item.unit) && (
                                        <span>{item.length} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * (item.quantity || 1)).toFixed(2)}</span></span>
                                    )}
-                                   {!['sq.ft', 'sq.mt', 'cu.ft', 'cu.mt', 'rft', 'r.mt'].includes(item.unit) && (
+                                   {!['sq.ft', 'sq.mt', 'sq.yd', 'acre', 'cu.ft', 'cu.mt', 'brass', 'rft', 'r.mt'].includes(item.unit) && (
                                        <span>{item.quantity}</span>
                                    )}
                                  </span>
