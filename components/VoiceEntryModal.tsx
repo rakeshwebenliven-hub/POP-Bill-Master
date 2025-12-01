@@ -34,33 +34,61 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         recognitionRef.current = new SpeechRecognition();
-        recognitionRef.current.continuous = true;
+        // MOBILE STABILITY FIX: Continuous false prevents browser crashes and duplicate text on Android
+        recognitionRef.current.continuous = false; 
         recognitionRef.current.interimResults = true;
         recognitionRef.current.lang = 'en-IN'; 
 
-        recognitionRef.current.onstart = () => { setIsListening(true); setError(null); };
+        recognitionRef.current.onstart = () => { 
+            setIsListening(true); 
+            setError(null); 
+        };
         
         recognitionRef.current.onresult = (event: any) => {
-          let finalTranscript = '';
-          for (let i = 0; i < event.results.length; i++) {
-             finalTranscript += event.results[i][0].transcript;
+          // Only process the current phrase
+          let currentPhrase = '';
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+             if (event.results[i].isFinal) {
+                currentPhrase += event.results[i][0].transcript;
+             }
           }
-          finalTranscript = finalTranscript.replace(/\s+/g, ' ');
-          setTranscript(finalTranscript);
+          // We handle the actual appending in 'onend' or via state update logic below if needed,
+          // but for interim visual feedback:
+          const interim = event.results[event.results.length - 1][0].transcript;
+          // We don't set transcript here to avoid jitter, we rely on the final result logic
+        };
+        
+        // Better handling for non-continuous mode
+        recognitionRef.current.onend = () => {
+             setIsListening(false);
+        };
+        
+        // Capture final result specifically
+        // We override the onresult to be simpler for non-continuous mode
+        recognitionRef.current.onresult = (event: any) => {
+             const result = event.results[0][0].transcript;
+             if (event.results[0].isFinal) {
+                 setTranscript(prev => {
+                     const trimmed = prev.trim();
+                     return trimmed ? `${trimmed} ${result}` : result;
+                 });
+             }
         };
 
         recognitionRef.current.onerror = (event: any) => {
           if (event.error === 'no-speech') {
-             // Ignore no-speech errors to keep UI clean
+             setIsListening(false);
           } else if (event.error === 'not-allowed') {
              setIsListening(false);
              setError("Microphone permission denied.");
+          } else if (event.error === 'aborted') {
+             setIsListening(false);
           } else {
              setIsListening(false);
+             // Don't show generic errors to keep UI clean unless critical
           }
         };
 
-        recognitionRef.current.onend = () => setIsListening(false);
       } else {
         setError(t.speechNotSupported);
       }
@@ -75,7 +103,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
   }, [isOpen]); 
 
   useEffect(() => {
-    // Debounce the parsing to prevent UI lag on every syllable
+    // Debounce the parsing to prevent UI lag
     if (transcript || transcript === '') {
         setIsProcessing(true);
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -85,8 +113,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             try {
                 const parsed = parseLocalTranscript(transcript, targetUnit, floorToUse);
                 setParsedItem(parsed);
-                // NOTE: We do NOT auto-switch targetUnit here anymore to prevent fighting the user's selection.
-                // The blue preview card will show the detected unit from the parser, but the dropdown remains stable.
             } catch (e) {
                 console.error("Parsing error", e);
             }
@@ -101,14 +127,11 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     if (isListening) {
       try { recognitionRef.current?.stop(); } catch(e) {}
     } else {
-      // Clear previous transcript if starting fresh after a stop? 
-      // User might want to append, but usually for a new item, we clear.
-      // setTranscript(''); 
       try { 
           recognitionRef.current?.start(); 
       } catch (e) { 
+          // If already started, ignore
           console.error(e);
-          setError("Mic error. Try again.");
       }
     }
   };
@@ -149,17 +172,13 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     }
 
     // Keyword detection only happens if we are in 'Auto' mode or similar, 
-    // BUT we prioritize the `currentUnitMode` passed in (which corresponds to targetUnit state).
-    // We only override if explicit keywords exist that CONTRADICT the current mode strongly.
+    // BUT we prioritize the `currentUnitMode` passed in.
     if (processingText.match(/\b(sq\.?ft|square\s*feet)\b/)) detectedUnit = 'sq.ft';
     else if (processingText.match(/\b(cu\.?ft|cubic\s*feet)\b/)) detectedUnit = 'cu.ft';
     else if (processingText.match(/\b(r\.?ft|running\s*feet)\b/)) detectedUnit = 'rft';
     else if (processingText.match(/\b(brass)\b/)) detectedUnit = 'brass';
-    // Only switch to 'nos' if explicit keywords found AND we aren't already in a dimensional mode that might misinterpret 'pieces'
     else if (processingText.match(/\b(pcs|pieces|nos|numbers|bags|boxes|pkts|points|sets)\b/)) detectedUnit = 'nos';
 
-    // Force unit back to selected mode if no strong keyword override found
-    // This allows the user to say "10 by 12" with "Sq.ft" selected and get sq.ft logic
     if (!processingText.match(/\b(sq\.?ft|cu\.?ft|r\.?ft|brass|pcs|nos)\b/)) {
         detectedUnit = currentUnitMode;
     }
@@ -178,8 +197,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     for (const pat of ratePatterns) {
         const match = processingText.match(pat);
         if (match) {
-            // Safety: Ensure we didn't match a dimension like "12" in "10 12 rate 50" if the regex was too greedy
-            // The patterns above require a keyword, so they are generally safe.
             rate = parseFloat(match[1]);
             processingText = processingText.replace(match[0], ' '); 
             break; 
@@ -197,27 +214,24 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
 
     if (isSimple) {
         // NOS/PCS Logic
-        // Look for "4 pieces" patterns
         const qtyRegex = /(\d+)\s*(?:pcs|piece|pieces|nos|numbers|items|bag|bags|box|boxes|pkt|pkts|point|points|hrs|days|hours|kg|tons|visit|visits|month|months|set|sets|kw|hp|quintal|quintals)\b/i; 
         const qtyMatch = processingText.match(qtyRegex);
         
         if (qtyMatch) {
             quantity = parseFloat(qtyMatch[1]);
-            
-            // Check implicit rate if 0
             if (rate === 0) {
                  const remainingText = processingText.replace(qtyMatch[0], ' ');
                  const remNumbers = (remainingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
                  if (remNumbers.length > 0) rate = remNumbers[0];
             }
         } else {
-             // Implicit Qty (Just numbers: "4 500" -> 4 qty, 500 rate)
+             // Implicit Qty
              if (numbers.length > 0) {
                  if (rate > 0) {
                      quantity = numbers[0]; // Rate already found, so this is Qty
                  } else {
                      if (numbers.length === 1) {
-                         quantity = numbers[0]; // Just one number -> Qty
+                         quantity = numbers[0]; 
                      } else if (numbers.length >= 2) {
                          quantity = numbers[0];
                          rate = numbers[1]; // Implicit: Qty then Rate
@@ -227,7 +241,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         }
 
     } else {
-        // DIMENSIONS Logic (Sq.ft / Cu.ft / R.ft)
+        // DIMENSIONS Logic
         if (rate > 0) {
             if (isVolumetric) {
                 if (numbers.length >= 3) { [length, width, height] = numbers; }
@@ -238,7 +252,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                  if (numbers.length >= 1) { length = numbers[0]; }
             }
         } else {
-            // No explicit rate found, check count of numbers to guess
+            // No explicit rate found
             const requiredDims = isVolumetric ? 3 : (isArea ? 2 : 1);
             
             if (numbers.length === requiredDims) {
@@ -246,7 +260,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                 else if (isArea) [length, width] = numbers;
                 else if (isLinear) length = numbers[0];
             } else if (numbers.length > requiredDims) {
-                // Assume last number is Rate
                 rate = numbers[numbers.length - 1];
                 const dimNumbers = numbers.slice(0, numbers.length - 1);
                 
@@ -259,7 +272,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                     length = dimNumbers[0];
                 }
             } else {
-                 // Partial dims
                  if (isVolumetric && numbers.length >= 2) [length, width] = numbers;
                  else if (isArea && numbers.length >= 1) length = numbers[0];
                  else if (isLinear && numbers.length >= 1) length = numbers[0];
@@ -278,7 +290,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       .trim();
     
     if (cleanDesc) cleanDesc = cleanDesc.charAt(0).toUpperCase() + cleanDesc.slice(1);
-    // If description is empty but we parsed data, provide a default
     if (!cleanDesc && (length || quantity > 1)) cleanDesc = "Item";
   
     return { description: cleanDesc, length, width, height, quantity, rate, unit: detectedUnit, floor };
@@ -356,7 +367,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           </button>
 
           <p className="h-6 text-sm font-medium text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-2 mb-2">
-            {isListening ? t.listening : (isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.processing}</> : (transcript ? "Tap text below to edit" : "Tap mic to start"))}
+            {isListening ? t.listening : (isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.processing}</> : (transcript ? "Tap text below to edit" : "Tap mic to speak"))}
           </p>
           
           <p className="text-xs text-slate-400 dark:text-slate-500 mb-4 italic">{getHintText()}</p>
@@ -368,7 +379,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                     onChange={(e) => setTranscript(e.target.value)} 
                     className="w-full bg-slate-50 dark:bg-slate-800 p-3 pl-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none max-h-24 overflow-y-auto shadow-inner" 
                     rows={2} 
-                    placeholder="Speak details..." 
+                    placeholder="Transcript appears here..." 
                 />
                 <Pencil className="w-3 h-3 absolute right-3 bottom-3 text-slate-400 pointer-events-none" />
             </div>
