@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Trash2, Download, FileText, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, FileDown, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, AlertTriangle, Loader2, Circle } from 'lucide-react';
+import { Plus, Trash2, Download, FileText, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, FileDown, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, AlertTriangle, Loader2 } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile } from './types';
 import { APP_TEXT, SUBSCRIPTION_PLANS, CONSTRUCTION_UNITS } from './constants';
 import { generateExcel } from './services/excelService';
@@ -20,7 +20,6 @@ interface SwipeableItemProps {
   index: number;
   onDelete: (id: string) => void;
   onEdit: (item: BillItem) => void;
-  onTogglePaid: (id: string) => void;
 }
 
 // --- Swipeable Item Component ---
@@ -28,8 +27,7 @@ const SwipeableItem: React.FC<SwipeableItemProps> = ({
   item, 
   index, 
   onDelete, 
-  onEdit, 
-  onTogglePaid 
+  onEdit 
 }) => {
   const [startX, setStartX] = useState<number | null>(null);
   const [offsetX, setOffsetX] = useState(0);
@@ -79,25 +77,12 @@ const SwipeableItem: React.FC<SwipeableItemProps> = ({
         onTouchEnd={handleTouchEnd}
       >
           <div className="flex gap-4 w-full">
-              {/* Toggle Paid Status */}
-              <button 
-                onClick={(e) => { e.stopPropagation(); onTogglePaid(item.id); }}
-                className="shrink-0 mt-1"
-              >
-                {item.isPaid ? (
-                   <CheckCircle2 className="w-8 h-8 text-green-500 fill-green-100 dark:fill-green-900" />
-                ) : (
-                   <Circle className="w-8 h-8 text-slate-300 dark:text-slate-600 hover:text-indigo-500 transition-colors" />
-                )}
-              </button>
-
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 flex-wrap mb-1">
-                  <span className={`${item.isPaid ? 'line-through text-slate-400 dark:text-slate-500' : ''}`}>
+                  <span>
                     {item.description}
                   </span>
                   {item.floor && <span className="text-[10px] uppercase font-bold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded tracking-wide">{item.floor}</span>}
-                  {item.isPaid && <span className="text-[10px] uppercase font-bold bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded tracking-wide">Paid</span>}
                 </div>
                 <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
                   <span className="font-medium text-slate-700 dark:text-slate-300">
@@ -507,12 +492,6 @@ const App: React.FC = () => {
   const handleRemoveItem = (id: string) => {
     setItems(prev => prev.filter(item => item.id !== id));
     showToast("Item removed");
-  };
-
-  const handleToggleItemPaid = (id: string) => {
-     setItems(prev => prev.map(item => 
-        item.id === id ? { ...item, isPaid: !item.isPaid } : item
-     ));
   };
 
   const handleVoiceConfirm = (parsed: ParsedBillItem) => {
@@ -1261,7 +1240,6 @@ const App: React.FC = () => {
                             index={idx} 
                             onDelete={handleRemoveItem} 
                             onEdit={handleEditItem}
-                            onTogglePaid={handleToggleItemPaid}
                         />
                       ))}
                     </div>
