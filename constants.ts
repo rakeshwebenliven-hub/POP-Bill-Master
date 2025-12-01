@@ -75,6 +75,15 @@ export const APP_TEXT = {
   generatePdf: "PDF",
   share: "Share Bill",
   shareText: "Here is the bill for the work.",
+  shareModalTitle: "Share Bill",
+  shareOptions: {
+    text: "Text Summary",
+    pdf: "PDF File",
+    excel: "Excel File"
+  },
+  sharePreview: "Message Preview",
+  copyToClipboard: "Copy to Clipboard",
+  shareViaApp: "Share via App",
   calculator: "Calculator",
   cancel: "Cancel",
   confirm: "Add to Bill",
@@ -133,7 +142,7 @@ export const APP_TEXT = {
   voiceHints: {
     sqft: "Try: 'Wall Paint 10 by 12 rate 25'",
     rft: "Try: 'Pipe Work 100 feet rate 45'",
-    nos: "Try: 'Switch Box 4 pieces rate 250'",
+    nos: "Try: 'Panel 4 pieces rate 250'",
     cuft: "Try: 'Concrete 10 by 10 by 2 rate 300'",
     brass: "Try: 'Sand filling 10 by 10 by 5 rate 4000'",
     visit: "Try: 'Site Visit 5 times rate 2000'"

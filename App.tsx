@@ -13,6 +13,7 @@ import CalculatorModal from './components/CalculatorModal';
 import VoiceEntryModal from './components/VoiceEntryModal';
 import OnboardingFlow from './components/OnboardingFlow';
 import SubscriptionPlans from './components/SubscriptionPlans';
+import ShareModal from './components/ShareModal';
 
 interface SwipeableItemProps {
   item: BillItem;
@@ -236,6 +237,7 @@ const App: React.FC = () => {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'items'>('details');
   const [historyItems, setHistoryItems] = useState<SavedBillData[]>([]);
   const [trashItems, setTrashItems] = useState<SavedBillData[]>([]);
@@ -352,16 +354,11 @@ const App: React.FC = () => {
       saveDraft(billData);
       
       // Auto-save to History (Real-time update if bill exists)
-      // Check if this bill number already exists in history to update it in real-time
       const history = getHistory();
       const existingIndex = history.findIndex(b => b.billNumber === billNumber);
       
       if (existingIndex >= 0) {
          saveToHistory(billData);
-         // Silent update of history items to reflect changes in UI if needed, 
-         // though mainly we want the persistence.
-         // We don't call setHistoryItems here to avoid potential render loops/flicker 
-         // unless we are in the history view, but for data safety it's saved.
       }
     }
   }, [items, client, contractor, gstEnabled, gstRate, billNumber, billDate, paymentStatus, payments, disclaimer, user]);
@@ -587,7 +584,6 @@ const App: React.FC = () => {
       payments,
       disclaimer
     });
-    // Refresh history from storage instead of manual append to handle updates correctly
     setHistoryItems(getHistory());
     showToast(t.billSaved);
   };
@@ -726,22 +722,70 @@ const App: React.FC = () => {
      setContractor(prev => ({ ...prev, socialLinks: updated }));
   };
 
-  const handleShare = async () => {
-     const text = `Bill from ${contractor.companyName || contractor.name} for ${client.name}. Total: ₹${totals.grandTotal}`;
+  // --- Share Logic ---
+  const generateBillText = () => {
+      const dateStr = new Date(billDate).toLocaleDateString();
+      let text = `*INVOICE / BILL*\n`;
+      text += `Bill No: ${billNumber}\n`;
+      text += `Date: ${dateStr}\n\n`;
+      text += `*From:*\n${contractor.companyName || contractor.name}\n${contractor.phone}\n\n`;
+      text += `*To:*\n${client.name}\n\n`;
+      text += `*Items:*\n`;
+      items.forEach((item, idx) => {
+          text += `${idx+1}. ${item.description} - ${item.quantity} ${item.unit} x ${item.rate} = ₹${item.amount.toFixed(0)}\n`;
+      });
+      text += `\n*Total: ₹${totals.grandTotal.toFixed(2)}*`;
+      if (totals.advance > 0) text += `\nPaid: ₹${totals.advance.toFixed(2)}\nBalance: ₹${totals.balance.toFixed(2)}`;
+      
+      if (contractor.bankDetails?.upiId) {
+          text += `\n\nPay via UPI: ${contractor.bankDetails.upiId}`;
+      }
+      return text;
+  };
+
+  const handleShareText = () => {
+     const text = generateBillText();
      if (navigator.share) {
-        try {
-           await navigator.share({
-              title: 'Contractor Bill',
-              text: text,
-              url: window.location.href
-           });
-        } catch (e) {
-           console.log("Share failed");
-        }
+        navigator.share({ title: 'Bill Summary', text }).catch(() => {});
      } else {
         const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
         window.open(url, '_blank');
      }
+  };
+
+  const handleShareFile = async (type: 'pdf' | 'excel') => {
+      const safeBillNum = (billNumber || 'Draft').replace(/[^a-z0-9]/gi, '_');
+      const fileName = `Bill_${safeBillNum}.${type === 'pdf' ? 'pdf' : 'xlsx'}`;
+      let blob: Blob;
+
+      if (type === 'pdf') {
+          // @ts-ignore - generatePDF updated to return blob
+          blob = generatePDF(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, paymentStatus, totals, billDate, true);
+      } else {
+          // @ts-ignore - generateExcel updated to return blob
+          blob = generateExcel(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, paymentStatus, billDate, true);
+      }
+
+      if (navigator.canShare && navigator.canShare({ files: [new File([blob], fileName, { type: blob.type })] })) {
+          try {
+              await navigator.share({
+                  files: [new File([blob], fileName, { type: blob.type })],
+                  title: 'Share Bill',
+                  text: `Here is the bill ${fileName}`
+              });
+          } catch (e) {
+              console.error("Share failed", e);
+          }
+      } else {
+          // Fallback download
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          a.click();
+          showToast(`Downloaded ${fileName} (Sharing not supported on this device)`);
+      }
+      setIsShareModalOpen(false);
   };
 
   const handleHistoryDownloadPdf = (bill: SavedBillData) => {
@@ -1309,7 +1353,7 @@ const App: React.FC = () => {
       {/* --- BOTTOM ACTION BAR --- */}
       <div className="fixed bottom-0 left-0 right-0 glass-panel z-40 safe-area-bottom pb-6 sm:pb-3 shadow-[0_-8px_30px_rgba(0,0,0,0.12)]">
          <div className="max-w-4xl mx-auto p-3 grid grid-cols-2 sm:flex sm:justify-end gap-3">
-            <button onClick={handleShare} className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition active:scale-95 shadow-sm border border-slate-200 dark:border-slate-700"><Share2 className="w-5 h-5" /> {t.share}</button>
+            <button onClick={() => setIsShareModalOpen(true)} className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition active:scale-95 shadow-sm border border-slate-200 dark:border-slate-700"><Share2 className="w-5 h-5" /> {t.share}</button>
             <button onClick={handleSaveBill} className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-blue-600 dark:bg-blue-600 text-white hover:bg-blue-700 dark:hover:bg-blue-500 transition shadow-lg shadow-blue-200 dark:shadow-none active:scale-95"><Save className="w-5 h-5" /> {t.saveBill}</button>
             <button onClick={() => generatePDF(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, paymentStatus, totals, billDate)} className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-red-600 dark:bg-red-600 text-white hover:bg-red-700 dark:hover:bg-red-500 shadow-lg shadow-red-200 dark:shadow-none transition active:scale-95 disabled:opacity-50 disabled:shadow-none" disabled={items.length === 0}><FileDown className="w-5 h-5" /> PDF</button>
             <button onClick={() => generateExcel(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, paymentStatus, billDate)} className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-green-600 dark:bg-green-600 text-white hover:bg-green-700 dark:hover:bg-green-500 shadow-lg shadow-green-200 dark:shadow-none transition active:scale-95 disabled:opacity-50 disabled:shadow-none" disabled={items.length === 0}><Download className="w-5 h-5" /> Excel</button>
@@ -1320,6 +1364,14 @@ const App: React.FC = () => {
       <HistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} history={historyItems} trash={trashItems} onLoad={handleLoadBill} onDelete={handleDeleteBill} onRestore={handleRestoreBill} onPermanentDelete={handlePermanentDelete} onUpdateStatus={handleUpdateHistoryStatus} onDownloadPdf={handleHistoryDownloadPdf} onDownloadExcel={handleHistoryDownloadExcel} />
       <CalculatorModal isOpen={isCalcOpen} onClose={() => setIsCalcOpen(false)} />
       <VoiceEntryModal isOpen={isVoiceModalOpen} onClose={() => setIsVoiceModalOpen(false)} onConfirm={handleVoiceConfirm} />
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onClose={() => setIsShareModalOpen(false)}
+        onShareText={handleShareText}
+        onSharePdf={() => handleShareFile('pdf')}
+        onShareExcel={() => handleShareFile('excel')}
+        previewText={generateBillText()}
+      />
     </div>
   );
 };

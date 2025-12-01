@@ -14,7 +14,8 @@ export const generatePDF = (
   billNumber: string,
   paymentStatus: PaymentStatus,
   totals: { subTotal: number, gst: number, grandTotal: number, balance: number, advance: number },
-  billDate: string
+  billDate: string,
+  returnBlob: boolean = false
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
@@ -368,5 +369,10 @@ export const generatePDF = (
   doc.text("Contractor Signature", pageWidth - 14, signY + 5, { align: "right" });
 
   const safeBillNum = (billNumber || 'Draft').replace(/[^a-z0-9]/gi, '_');
-  doc.save(`Bill_${safeBillNum}.pdf`);
+  
+  if (returnBlob) {
+    return doc.output('blob');
+  } else {
+    doc.save(`Bill_${safeBillNum}.pdf`);
+  }
 };

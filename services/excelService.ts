@@ -12,7 +12,8 @@ export const generateExcel = (
   disclaimer: string,
   billNumber: string,
   paymentStatus: PaymentStatus,
-  billDate: string
+  billDate: string,
+  returnBlob: boolean = false
 ) => {
   // Format Date
   const formattedDate = billDate ? new Date(billDate).toLocaleDateString() : new Date().toLocaleDateString();
@@ -154,8 +155,6 @@ export const generateExcel = (
   const balanceDue = grandTotal - totalAdvance;
 
   // Footer - Calculate padding based on visible columns
-  // Visible cols = SNo + (Floor?) + Desc + (L?) + (W?) + (H?) + Qty + Unit + TotQty + Rate + Amount
-  // We want the label to start at 'Rate' column index roughly, or 3 cols back from end
   const totalCols = tableHeaders.length;
   // Pad until the 'Total Qty' column
   const padCols = totalCols - 5; // -5 accounts for Amount, Rate, TotalQty, Unit, Qty
@@ -166,13 +165,6 @@ export const generateExcel = (
     [...padding, "Sub Total:", "", "", "", subTotal.toFixed(2)]
   ];
 
-  // Adjust padding for footer rows to align with Amount column (last column)
-  // We need the label to be in the column before amount, or earlier.
-  // Actually, standard practice: Label in one cell, Empty, Empty, Value in last.
-  // Let's refine:
-  // We want: [ ...padding, Label, val ] 
-  // If we utilize the last 2 columns for Label | Value, we need padding of (totalCols - 2)
-  
   const footerPadding = Array(Math.max(0, totalCols - 2)).fill("");
 
   // Re-define footer with precise alignment
@@ -268,7 +260,12 @@ export const generateExcel = (
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Bill");
 
-  const safeBillNum = (billNumber || 'Draft').replace(/[^a-z0-9]/gi, '_');
-  const fileName = `Bill_${safeBillNum}.xlsx`;
-  XLSX.writeFile(wb, fileName);
+  if (returnBlob) {
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    return new Blob([wbout], { type: 'application/octet-stream' });
+  } else {
+    const safeBillNum = (billNumber || 'Draft').replace(/[^a-z0-9]/gi, '_');
+    const fileName = `Bill_${safeBillNum}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  }
 };
