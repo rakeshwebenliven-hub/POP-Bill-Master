@@ -45,7 +45,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           for (let i = 0; i < event.results.length; i++) {
              finalTranscript += event.results[i][0].transcript;
           }
-          // Basic normalization of spaces
           finalTranscript = finalTranscript.replace(/\s+/g, ' ');
           setTranscript(finalTranscript);
         };
@@ -55,7 +54,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           if (event.error === 'not-allowed') {
              setError("Microphone permission denied.");
           } else if (event.error === 'no-speech') {
-             // Ignore no-speech errors to keep UI clean, just stop listening state
              setIsListening(false);
           } else {
              console.warn("Speech Error:", event.error);
@@ -79,12 +77,15 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         setIsProcessing(true);
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
         
-        // Debounce parsing to avoid UI lag on mobile
         debounceTimerRef.current = setTimeout(() => {
             const floorToUse = targetFloor === 'custom' ? customFloor : targetFloor;
             try {
                 const parsed = parseLocalTranscript(transcript, targetUnit, floorToUse);
                 setParsedItem(parsed);
+                // Auto-switch unit if parser detected a different one
+                if (parsed.unit && parsed.unit !== targetUnit) {
+                   setTargetUnit(parsed.unit);
+                }
             } catch (e) {
                 console.error("Parsing error", e);
             }
@@ -103,7 +104,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       try { 
           recognitionRef.current?.start(); 
       } catch (e) { 
-          // If already started or other state error, try stopping first then start
           try {
               recognitionRef.current?.stop();
               setTimeout(() => recognitionRef.current?.start(), 100);
@@ -126,17 +126,17 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     return text.split(' ').map(word => map[word.toLowerCase()] || word).join(' ');
   };
 
-  const parseLocalTranscript = (text: string, unitMode: string, manualFloor: string): ParsedBillItem => {
-    // 1. Normalize Numbers
+  const parseLocalTranscript = (text: string, currentUnitMode: string, manualFloor: string): ParsedBillItem => {
+    // 1. Normalize
     let processingText = normalizeNumbers(text).toLowerCase();
     
-    // Normalize Separators: Replace 'by', 'into', 'cross' with 'x'
+    // Normalize Separators
     processingText = processingText.replace(/\b(by|buy|bye|bai|be|into|cross)\b/g, 'x');
 
-    // Default values
     let length = 0, width = 0, height = 0, quantity = 1, rate = 0, floor = manualFloor;
+    let detectedUnit = currentUnitMode;
 
-    // Detect Floor if not manual
+    // Detect Floor
     if (!floor) {
         if (processingText.match(/\b(ground|gf)\b/)) floor = 'Ground Floor';
         else if (processingText.match(/\b(first|1st|ff)\b/)) floor = '1st Floor';
@@ -146,77 +146,75 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         else if (processingText.match(/\b(fifth|5th)\b/)) floor = '5th Floor';
     }
 
-    // 2. EXTRACT & REMOVE RATE FIRST (Priority Pass)
-    // We use standard regex safe for all browsers (No Lookbehind)
+    // Auto-Detect Unit from Keywords
+    if (processingText.match(/\b(sq\.?ft|square\s*feet)\b/)) detectedUnit = 'sq.ft';
+    else if (processingText.match(/\b(cu\.?ft|cubic\s*feet)\b/)) detectedUnit = 'cu.ft';
+    else if (processingText.match(/\b(r\.?ft|running\s*feet)\b/)) detectedUnit = 'rft';
+    else if (processingText.match(/\b(brass)\b/)) detectedUnit = 'brass';
+    else if (processingText.match(/\b(pcs|pieces|nos|numbers|bags|boxes|pkts|points|sets)\b/)) detectedUnit = 'nos';
+
+    // 2. EXTRACT & REMOVE RATE FIRST
     const ratePatterns = [
-        // Matches: rate 50, price 50, @ 50, bhav 50, at 50
-        /\b(?:rate|price|@|bhav|ret|cost|at)\s*[:\-\s]*(\d+(?:\.\d+)?)/i, 
-        // Matches: rs 50, inr 50
+        // rate 50, price 50, @ 50
+        /\b(?:rate|price|@|bhav|ret|cost|at|of)\s*[:\-\s]*(\d+(?:\.\d+)?)/i, 
+        // rs 50, inr 50
         /\b(?:rs|rupees?|inr)\.?\s*(\d+(?:\.\d+)?)/i,
-        // Matches: 50 rs, 50 rupees (Ensure we match the number and the currency)
+        // 50 rs, 50 rupees
         /\b(\d+(?:\.\d+)?)\s*(?:rs|rupees?|inr)\b/i
     ];
 
     for (const pat of ratePatterns) {
         const match = processingText.match(pat);
         if (match) {
-            // Check if this "number" is actually part of a dimension like "10 x 12"
-            // If the pattern matched something like "12 rate", we might have an issue, 
-            // but the patterns above are specific to "Rate Keyword + Number" or "Number + Currency".
-            
             rate = parseFloat(match[1]);
-            // Remove the specific matched string to clean it from description/dimensions
             processingText = processingText.replace(match[0], ' '); 
             break; 
         }
     }
 
     // 3. UNIT SPECIFIC PARSING
+    // Re-scan numbers after rate removal
     const numbers = (processingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
     
-    const isVolumetric = ['cu.ft', 'cu.mt', 'brass'].includes(unitMode);
-    const isArea = ['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(unitMode);
-    const isLinear = ['rft', 'r.mt'].includes(unitMode);
-    const isSimple = !isVolumetric && !isArea && !isLinear; // Nos, Pcs, etc.
+    const isVolumetric = ['cu.ft', 'cu.mt', 'brass'].includes(detectedUnit);
+    const isArea = ['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(detectedUnit);
+    const isLinear = ['rft', 'r.mt'].includes(detectedUnit);
+    const isSimple = !isVolumetric && !isArea && !isLinear; 
 
     if (isSimple) {
-        // --- LOGIC FOR NOS/PCS ---
-        // Explicitly look for "4 pieces" or similar patterns
-        const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items|bags|boxes|pkts|points|hrs|days|hours|kg|tons|visits|months|sets|kw|hp|quintals)\b/i; 
+        // NOS/PCS Logic
+        // Look for "4 pieces" patterns
+        const qtyRegex = /(\d+)\s*(?:pcs|piece|pieces|nos|numbers|items|bag|bags|box|boxes|pkt|pkts|point|points|hrs|days|hours|kg|tons|visit|visits|month|months|set|sets|kw|hp|quintal|quintals)\b/i; 
         const qtyMatch = processingText.match(qtyRegex);
         
         if (qtyMatch) {
             quantity = parseFloat(qtyMatch[1]);
-            // If we haven't found a rate yet, look for dangling numbers
+            
+            // Check implicit rate if 0
             if (rate === 0) {
-                 // Remove the quantity part string
                  const remainingText = processingText.replace(qtyMatch[0], ' ');
                  const remNumbers = (remainingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
                  if (remNumbers.length > 0) rate = remNumbers[0];
             }
         } else {
-             // Implicit Qty (No keyword "pieces")
+             // Implicit Qty
              if (numbers.length > 0) {
                  if (rate > 0) {
-                     // We already have rate, so first number is Qty
                      quantity = numbers[0];
                  } else {
-                     // No rate found yet. 
                      if (numbers.length === 1) {
                          quantity = numbers[0];
                      } else if (numbers.length >= 2) {
-                         // Assume first is Qty, second is Rate
                          quantity = numbers[0];
-                         rate = numbers[1];
+                         rate = numbers[1]; // Implicit rate at end
                      }
                  }
              }
         }
 
     } else {
-        // --- LOGIC FOR DIMENSIONS (SQ.FT / CU.FT / R.FT) ---
+        // DIMENSIONS Logic (Sq.ft / Cu.ft / R.ft)
         if (rate > 0) {
-            // Rate is known. Fill dimensions from left to right.
             if (isVolumetric) {
                 if (numbers.length >= 3) { [length, width, height] = numbers; }
                 else if (numbers.length === 2) { [length, width] = numbers; }
@@ -226,16 +224,15 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                  if (numbers.length >= 1) { length = numbers[0]; }
             }
         } else {
-            // Rate NOT found explicitly. Check for implicit rate at the end.
+            // No explicit rate found
             const requiredDims = isVolumetric ? 3 : (isArea ? 2 : 1);
             
             if (numbers.length === requiredDims) {
-                // Exact match for dims, so no rate
                 if (isVolumetric) [length, width, height] = numbers;
                 else if (isArea) [length, width] = numbers;
                 else if (isLinear) length = numbers[0];
             } else if (numbers.length > requiredDims) {
-                // Extra number found. Assume LAST number is Rate.
+                // Assume last number is Rate
                 rate = numbers[numbers.length - 1];
                 const dimNumbers = numbers.slice(0, numbers.length - 1);
                 
@@ -248,7 +245,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                     length = dimNumbers[0];
                 }
             } else {
-                 // Partial dimensions
+                 // Partial
                  if (isVolumetric && numbers.length >= 2) [length, width] = numbers;
                  else if (isArea && numbers.length >= 1) length = numbers[0];
                  else if (isLinear && numbers.length >= 1) length = numbers[0];
@@ -256,19 +253,19 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         }
     }
 
-    // 4. CLEANUP DESCRIPTION
+    // 4. Cleanup
     let cleanDesc = processingText
       .replace(/\b(ground|first|second|floor|third|fourth|fifth)\b/gi, '')
-      .replace(/\b(rate|price|rs|rupees|bhav|ret|cost|at)\b/gi, '')
+      .replace(/\b(rate|price|rs|rupees|bhav|ret|cost|at|of)\b/gi, '')
       .replace(/\b(sq\.?ft|rft|nos|pieces|cu\.?ft|brass)\b/gi, '')
-      .replace(/[0-9.]/g, '') // Remove digits and decimals
-      .replace(/[^\w\s]/gi, '') // Remove punctuation
+      .replace(/[0-9.]/g, '') 
+      .replace(/[^\w\s]/gi, '') 
       .replace(/\s+/g, ' ')
       .trim();
     
     if (cleanDesc) cleanDesc = cleanDesc.charAt(0).toUpperCase() + cleanDesc.slice(1);
   
-    return { description: cleanDesc || "Item", length, width, height, quantity, rate, unit: unitMode, floor };
+    return { description: cleanDesc || "Item", length, width, height, quantity, rate, unit: detectedUnit, floor };
   };
 
   const getHintText = () => {
@@ -284,12 +281,10 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      {/* Click outside to close */}
       <div className="absolute inset-0" onClick={onClose}></div>
 
       <div className="bg-white dark:bg-slate-900 w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden border-t border-slate-200 dark:border-slate-800 sm:border transition-all animate-slide-up safe-area-bottom">
         
-        {/* Mobile Grabber */}
         <div className="w-full flex justify-center pt-3 pb-1 sm:hidden" onClick={onClose}>
            <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
         </div>
@@ -358,7 +353,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                     className="w-full bg-slate-50 dark:bg-slate-800 p-3 pl-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none max-h-24 overflow-y-auto shadow-inner" 
                     rows={2} 
                     placeholder="Speak details..." 
-                    autoFocus
                 />
                 <Pencil className="w-3 h-3 absolute right-3 bottom-3 text-slate-400 pointer-events-none" />
             </div>

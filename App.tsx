@@ -24,7 +24,6 @@ interface SwipeableItemProps {
   onEdit: (item: BillItem) => void;
 }
 
-// --- Swipeable Item Component ---
 const SwipeableItem: React.FC<SwipeableItemProps> = ({ 
   item, 
   index, 
@@ -34,7 +33,7 @@ const SwipeableItem: React.FC<SwipeableItemProps> = ({
   const [startX, setStartX] = useState<number | null>(null);
   const [offsetX, setOffsetX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
-  const threshold = -100; // px to trigger delete
+  const threshold = -100;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setStartX(e.touches[0].clientX);
@@ -45,8 +44,6 @@ const SwipeableItem: React.FC<SwipeableItemProps> = ({
     if (startX === null) return;
     const currentX = e.touches[0].clientX;
     const diff = currentX - startX;
-    
-    // Only allow left swipe
     if (diff < 0) {
       setOffsetX(diff);
     }
@@ -77,14 +74,11 @@ const SwipeableItem: React.FC<SwipeableItemProps> = ({
           <div className="flex gap-4 w-full">
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 flex-wrap mb-1">
-                  <span>
-                    {item.description}
-                  </span>
+                  <span>{item.description}</span>
                   {item.floor && <span className="text-[10px] uppercase font-bold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded tracking-wide">{item.floor}</span>}
                 </div>
                 <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
                   <span className="font-medium text-slate-700 dark:text-slate-300">
-                    {/* Adaptive Display based on Unit */}
                     {['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(item.unit) && (
                         <span>{item.length} x {item.width} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * item.width * (item.quantity || 1)).toFixed(2)}</span></span>
                     )}
@@ -130,22 +124,15 @@ const LoadingFallback = () => (
 
 
 const App: React.FC = () => {
-  // --- Auth & Subscription State ---
   const [user, setUser] = useState<UserProfile | null>(null);
   const [access, setAccess] = useState<{ hasAccess: boolean; daysLeft: number; isTrial: boolean }>({ hasAccess: false, daysLeft: 0, isTrial: false });
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [showSubscription, setShowSubscription] = useState(false);
-
-  // --- Cloud Sync State ---
   const [isSyncing, setIsSyncing] = useState(false);
-  
-  // --- Toast State ---
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  // --- App Logic ---
   const t = APP_TEXT;
 
-  // Theme State
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark' || 
@@ -154,12 +141,10 @@ const App: React.FC = () => {
     return false;
   });
 
-  // Bill Metadata
   const [billNumber, setBillNumber] = useState('');
   const [billDate, setBillDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('Pending');
 
-  // Contractor Info
   const [contractor, setContractor] = useState<ContractorDetails>({
     name: '',
     companyName: '',
@@ -181,39 +166,31 @@ const App: React.FC = () => {
     upiQrCode: ''
   });
 
-  // Profiles State
   const [profiles, setProfiles] = useState<ContractorProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState('');
-
-  // Social Media Input State
   const [selectedPlatform, setSelectedPlatform] = useState<SocialPlatform>('Instagram');
   const [socialUrl, setSocialUrl] = useState('');
 
-  // Client Info
   const [client, setClient] = useState<ClientDetails>({
     name: '',
     phone: '',
     address: ''
   });
 
-  // Bill Settings
   const [gstEnabled, setGstEnabled] = useState(false);
   const [gstRate, setGstRate] = useState<number>(18);
   const [disclaimer, setDisclaimer] = useState<string>('');
   
-  // Payment History State
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [newPaymentAmount, setNewPaymentAmount] = useState('');
   const [newPaymentDate, setNewPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [newPaymentNote, setNewPaymentNote] = useState('');
 
-  // Bill Items
   const [items, setItems] = useState<BillItem[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
 
-  // Current Input State
   const [currentItem, setCurrentItem] = useState<Partial<BillItem>>({
     description: '',
     length: 0,
@@ -225,7 +202,6 @@ const App: React.FC = () => {
     floor: ''
   });
 
-  // UI State
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
@@ -234,7 +210,6 @@ const App: React.FC = () => {
   const [historyItems, setHistoryItems] = useState<SavedBillData[]>([]);
   const [trashItems, setTrashItems] = useState<SavedBillData[]>([]);
 
-  // Toast Helper
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
@@ -666,26 +641,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSocialAdd = () => {
-     if (socialUrl) {
-        const newLink: SocialLink = {
-           platform: selectedPlatform,
-           url: socialUrl
-        };
-        setContractor(prev => ({
-           ...prev,
-           socialLinks: [...prev.socialLinks, newLink]
-        }));
-        setSocialUrl('');
-     }
-  };
-
-  const handleSocialDelete = (index: number) => {
-     const updated = [...contractor.socialLinks];
-     updated.splice(index, 1);
-     setContractor(prev => ({ ...prev, socialLinks: updated }));
-  };
-
   const generateBillText = () => {
       const dateStr = new Date(billDate).toLocaleDateString();
       let text = `*INVOICE / BILL*\n`;
@@ -885,7 +840,6 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-36 sm:pb-40 font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200">
       
-      {/* Toast Notification */}
       {toast && (
          <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-full shadow-xl animate-in slide-in-from-top duration-300 ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
              {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
@@ -938,7 +892,6 @@ const App: React.FC = () => {
       </header>
 
       <main className="max-w-4xl mx-auto p-3 sm:p-5 space-y-4 sm:space-y-6">
-
         {/* Paid Plan Renewal Banner */}
         {!access.isTrial && access.hasAccess && access.daysLeft <= 3 && (
            <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-2xl border border-orange-200 dark:border-orange-800 flex justify-between items-center shadow-sm">

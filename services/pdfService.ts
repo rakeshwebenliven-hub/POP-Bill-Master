@@ -24,7 +24,7 @@ export const generatePDF = (
   const formattedDate = billDate ? new Date(billDate).toLocaleDateString() : new Date().toLocaleDateString();
   const primaryColor = [79, 70, 229] as [number, number, number];
 
-  // Logic for Paid Status
+  // Logic for Paid Status - Override based on selection
   const isPaid = paymentStatus === 'Paid';
   const displayBalance = isPaid ? 0 : totals.balance;
 
@@ -112,13 +112,9 @@ export const generatePDF = (
 
   // --- Dynamic Column Logic ---
   const hasFloor = items.some(item => item.floor && item.floor.trim() !== '');
-  
-  // Check if we need the "Size" column. 
-  // If ALL items are simple units (Nos, Kg, etc), we don't need Size.
   const simpleUnits = ['nos', 'pcs', 'kg', 'ton', 'lsum', 'point', 'hours', 'days', '%', 'bag', 'box', 'pkt', 'ltr', 'visit', 'month', 'kw', 'hp', 'set', 'quintal'];
   const hasDimensions = items.some(item => !simpleUnits.includes(item.unit));
 
-  // Determine header row
   const tableHeadRow = ['#'];
   if (hasFloor) tableHeadRow.push('Floor');
   tableHeadRow.push('Description');
@@ -165,7 +161,6 @@ export const generatePDF = (
     return row;
   });
 
-  // Calculate Column Styles Dynamically
   let colIndex = 0;
   const colStyles: any = {
       [colIndex++]: { cellWidth: 8 } // #
@@ -175,7 +170,6 @@ export const generatePDF = (
       colStyles[colIndex++] = { cellWidth: 20 }; // Floor
   }
   
-  // Description width depends on whether we have Dimensions
   colStyles[colIndex++] = { cellWidth: hasDimensions ? 'auto' : 60 }; // Description
   
   if (hasDimensions) {
@@ -187,7 +181,6 @@ export const generatePDF = (
   colStyles[colIndex++] = { cellWidth: 18, halign: 'right' }; // Total
   colStyles[colIndex++] = { cellWidth: 18, halign: 'right' }; // Rate
   colStyles[colIndex++] = { cellWidth: 25, halign: 'right', fontStyle: 'bold' }; // Amount
-
 
   autoTable(doc, {
     startY: yPos + 25,
@@ -284,7 +277,7 @@ export const generatePDF = (
   doc.text(`INR ${displayBalance.toFixed(0)}`, valueX, finalY, { align: "right" });
 
   let currentLeftY = finalY - (totals.advance > 0 && !isPaid ? (payments.length * 6) + 8 : 8) - (gstEnabled ? 6 : 0) - 6; 
-  if (isPaid) currentLeftY = finalY - 16; // Adjust if showing single payment line
+  if (isPaid) currentLeftY = finalY - 16; 
   currentLeftY = Math.max(currentLeftY, doc.lastAutoTable.finalY + 10);
   
   if (finalY < 100 && doc.internal.getNumberOfPages() > 1) {

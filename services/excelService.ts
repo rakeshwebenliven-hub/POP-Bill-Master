@@ -15,11 +15,9 @@ export const generateExcel = (
   billDate: string,
   returnBlob: boolean = false
 ) => {
-  // Format Date
   const formattedDate = billDate ? new Date(billDate).toLocaleDateString() : new Date().toLocaleDateString();
   const isPaid = paymentStatus === 'Paid';
 
-  // Header Info
   const headerData = [
     ["CONTRACTOR BILL / INVOICE"],
     [],
@@ -43,7 +41,6 @@ export const generateExcel = (
     headerData.push(["Website:", contractor.website]);
   }
   
-  // Add Social Links
   if (contractor.socialLinks && contractor.socialLinks.length > 0) {
     contractor.socialLinks.forEach(link => {
       headerData.push([`${link.platform}:`, link.url]);
@@ -60,24 +57,14 @@ export const generateExcel = (
     []
   );
 
-  // --- Dynamic Column Analysis ---
-  
-  // Check if any item has a floor
   const hasFloor = items.some(item => item.floor && item.floor.trim() !== '');
-
-  // Check if any item needs Length (Not simple unit)
   const simpleUnits = ['nos', 'pcs', 'kg', 'ton', 'lsum', 'point', 'hours', 'days', '%', 'bag', 'box', 'pkt', 'ltr', 'visit', 'month', 'kw', 'hp', 'set', 'quintal'];
   const hasLength = items.some(item => !simpleUnits.includes(item.unit));
-
-  // Check if any item needs Width (Area, Volume, Brass)
   const widthUnits = ['sq.ft', 'sq.mt', 'sq.yd', 'acre', 'cu.ft', 'cu.mt', 'brass'];
   const hasWidth = items.some(item => widthUnits.includes(item.unit) && item.width > 0);
-
-  // Check if any item needs Height (Volume, Brass)
   const heightUnits = ['cu.ft', 'cu.mt', 'brass'];
   const hasHeight = items.some(item => heightUnits.includes(item.unit) && item.height && item.height > 0);
 
-  // Table Headers construction
   const tableHeaders = ["S.No"];
   if (hasFloor) tableHeaders.push("Floor");
   tableHeaders.push("Description");
@@ -93,30 +80,23 @@ export const generateExcel = (
     "Amount"
   );
 
-  // Table Data
   let subTotal = 0;
 
   const tableData = items.map((item, index) => {
     const quantity = item.quantity || 1;
     let totalItemValue = 0;
     
-    // Universal Calculation Engine
     if (['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(item.unit)) {
-        // Area
         totalItemValue = item.length * item.width * quantity;
     } else if (['cu.ft', 'cu.mt'].includes(item.unit)) {
-        // Volume
         const h = item.height || 0;
         totalItemValue = item.length * item.width * h * quantity;
     } else if (item.unit === 'brass') {
-        // Brass = (L*W*H)/100
         const h = item.height || 0;
         totalItemValue = (item.length * item.width * h * quantity) / 100;
     } else if (['rft', 'r.mt'].includes(item.unit)) {
-        // Linear
         totalItemValue = item.length * quantity;
     } else {
-        // Simple (Nos, Kg, Ton, Lsum, Visit, etc.)
         totalItemValue = quantity; 
     }
     
@@ -130,7 +110,6 @@ export const generateExcel = (
     if (hasFloor) row.push(item.floor || '');
     row.push(item.description);
     
-    // Conditionally push dimensions
     if (hasLength) row.push(isSimple ? '-' : item.length);
     if (hasWidth) row.push((isSimple || isLinear) ? '-' : item.width);
     if (hasHeight) row.push(isVolumetric ? (item.height || 0) : '-');
@@ -146,16 +125,13 @@ export const generateExcel = (
     return row;
   });
 
-  // Calculations
   const rate = gstRate || 18;
   const gstAmount = gstEnabled ? subTotal * (rate / 100) : 0;
   const grandTotal = subTotal + gstAmount;
   
-  // Calculate Balance logic based on status
   const totalAdvance = payments.reduce((sum, p) => sum + p.amount, 0);
   const balanceDue = isPaid ? 0 : grandTotal - totalAdvance;
 
-  // Footer - Calculate padding based on visible columns
   const totalCols = tableHeaders.length;
   const footerPadding = Array(Math.max(0, totalCols - 2)).fill("");
 
@@ -206,7 +182,6 @@ export const generateExcel = (
       smartFooter.push([], [...footerPadding, "*** PAID ***", ""]);
   }
 
-  // Add Account Details
   if (contractor.bankDetails) {
      const bd = contractor.bankDetails;
      if (bd.holderName || bd.bankName || bd.accountNumber || bd.ifscCode || bd.upiId || bd.branchAddress) {
@@ -238,22 +213,21 @@ export const generateExcel = (
   const wsData = [...headerData, tableHeaders, ...tableData, ...smartFooter];
   const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-  // Column Widths
   const colWidths = [
-    { wch: 6 },  // S.No
+    { wch: 6 },  
   ];
-  if(hasFloor) colWidths.push({ wch: 12 }); // Floor
-  colWidths.push({ wch: 30 }); // Description
+  if(hasFloor) colWidths.push({ wch: 12 });
+  colWidths.push({ wch: 30 });
   if(hasLength) colWidths.push({ wch: 8 });
   if(hasWidth) colWidths.push({ wch: 8 });
   if(hasHeight) colWidths.push({ wch: 8 });
   
   colWidths.push(
-    { wch: 6 },  // Qty
-    { wch: 8 },  // Unit
-    { wch: 12 }, // Total Qty
-    { wch: 10 }, // Rate
-    { wch: 15 }  // Amount
+    { wch: 6 },  
+    { wch: 8 }, 
+    { wch: 12 }, 
+    { wch: 10 }, 
+    { wch: 15 }  
   );
   
   ws['!cols'] = colWidths;
