@@ -1,7 +1,7 @@
 
 
 export const APP_TEXT = {
-  appTitle: "POP Bill Master",
+  appTitle: "Contractor Bill Master",
   contractorDetails: "Contractor / Business Details",
   clientDetails: "Client Details",
   profiles: "Saved Profiles",
@@ -45,10 +45,11 @@ export const APP_TEXT = {
   addItem: "Add Item",
   updateItem: "Update Item",
   cancelEdit: "Cancel Edit",
-  description: "Description / Area",
+  description: "Description / Work Item",
   length: "Length",
   width: "Width",
-  quantity: "Qty / Nos",
+  height: "Height / Depth",
+  quantity: "Qty",
   rate: "Rate",
   unit: "Unit",
   amount: "Amount",
@@ -65,20 +66,23 @@ export const APP_TEXT = {
     FF8: "8th Floor",
     FF9: "9th Floor",
     FF10: "10th Floor",
-    Basement: "Basement"
+    Basement: "Basement",
+    Terrace: "Terrace",
+    External: "External/Site"
   },
-  totalArea: "Total Area",
+  totalArea: "Total Qty/Area",
   totalAmount: "Total Amount",
   generateExcel: "Excel",
   generatePdf: "PDF",
   share: "Share Bill",
-  shareText: "Here is the bill for your POP work.",
+  shareText: "Here is the bill for the work.",
   calculator: "Calculator",
   cancel: "Cancel",
   confirm: "Add to Bill",
   sqft: "Sq.ft",
   rft: "R.ft",
   nos: "Nos/Pcs",
+  cuft: "Cu.ft",
   clear: "Clear All",
   emptyList: "No items added yet. Use the form to add items.",
   billSummary: "Bill Summary",
@@ -126,17 +130,40 @@ export const APP_TEXT = {
   deleteSuccess: "Bill permanently deleted.",
   moveToTrash: "Move to Trash",
   voiceEntry: "Voice Entry",
-  voiceEntryHint: "Tap mic & say: 'Bedroom Ceiling 10 by 12 rate 90'",
+  voiceEntryHint: "Tap mic & say: 'Pillar Concrete 10 by 10 by 5 rate 500'",
   voiceHints: {
-    sqft: "Tap mic & say: 'Bedroom Ceiling 10 by 12 rate 90'",
-    rft: "Tap mic & say: 'Cornice Design 100 feet rate 45'",
-    nos: "Tap mic & say: 'Ceiling Flowers 4 pieces rate 250'"
+    sqft: "Try: 'Wall Paint 10 by 12 rate 25'",
+    rft: "Try: 'Pipe Work 100 feet rate 45'",
+    nos: "Try: 'Switch Box 4 pieces rate 250'",
+    cuft: "Try: 'Concrete 10 by 10 by 2 rate 300'"
   },
   listening: "Listening...",
   processing: "Processing...",
   speechNotSupported: "Speech recognition is not supported in this browser. Please use Chrome or Edge.",
   browserNotSupported: "Browser not supported"
 };
+
+// Comprehensive list of units for all trades
+export const CONSTRUCTION_UNITS = [
+  { value: "sq.ft", label: "Sq.ft (Area)" },
+  { value: "rft", label: "R.ft (Linear)" },
+  { value: "cu.ft", label: "Cu.ft (Volume)" },
+  { value: "nos", label: "Nos/Pcs" },
+  { value: "sq.mt", label: "Sq.Mtr (Area)" },
+  { value: "r.mt", label: "R.Mtr (Linear)" },
+  { value: "cu.mt", label: "Cu.Mtr (Volume)" },
+  { value: "kg", label: "Kg (Weight)" },
+  { value: "ton", label: "Ton (Weight)" },
+  { value: "bag", label: "Bag" },
+  { value: "box", label: "Box" },
+  { value: "pkt", label: "Packet" },
+  { value: "ltr", label: "Litre" },
+  { value: "point", label: "Point (Elec)" },
+  { value: "hours", label: "Hours" },
+  { value: "days", label: "Days" },
+  { value: "lsum", label: "Lump Sum" },
+  { value: "%", label: "% Cost" }
+];
 
 export const SUBSCRIPTION_PLANS = [
   {

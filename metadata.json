@@ -1,6 +1,6 @@
 {
-  "name": "POP Bill Master",
-  "description": "Professional POP Contractor Billing App with Excel Export and PDF Support.",
+  "name": "Contractor Bill Master",
+  "description": "Professional Construction & Contractor Billing App with Excel Export and PDF Support.",
   "requestFramePermissions": [
     "microphone"
   ]

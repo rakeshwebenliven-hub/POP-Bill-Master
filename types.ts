@@ -4,8 +4,9 @@ export interface BillItem {
   description: string;
   length: number;
   width: number;
+  height?: number; // Added for Volume (Civil/Concrete)
   quantity: number;
-  unit: string; // 'sq.ft' | 'rft' | 'nos'
+  unit: string; 
   rate: number;
   amount: number;
   floor?: string;
@@ -58,9 +59,10 @@ export interface ParsedBillItem {
   description: string;
   length: number;
   width: number;
+  height?: number;
   quantity: number;
   rate: number;
-  unit: string; // 'sq.ft' | 'rft' | 'nos'
+  unit: string; 
   floor?: string;
 }
 

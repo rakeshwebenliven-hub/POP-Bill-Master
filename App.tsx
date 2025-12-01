@@ -1,8 +1,9 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Download, FileText, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, FileDown, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, AlertTriangle, Loader2 } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile } from './types';
-import { APP_TEXT, SUBSCRIPTION_PLANS } from './constants';
+import { APP_TEXT, SUBSCRIPTION_PLANS, CONSTRUCTION_UNITS } from './constants';
 import { generateExcel } from './services/excelService';
 import { generatePDF } from './services/pdfService';
 import { saveDraft, loadDraft, saveToHistory, getHistory, deleteFromHistory, saveProfile, getProfiles, deleteProfile, updateBillStatus, getTrash, restoreFromTrash, permanentDelete } from './services/storageService';
@@ -85,7 +86,6 @@ const App: React.FC = () => {
   
   // Payment History State
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
-  // Temp state for new payment entry
   const [newPaymentAmount, setNewPaymentAmount] = useState('');
   const [newPaymentDate, setNewPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [newPaymentNote, setNewPaymentNote] = useState('');
@@ -101,6 +101,7 @@ const App: React.FC = () => {
     description: '',
     length: 0,
     width: 0,
+    height: 0,
     quantity: 1,
     rate: 0,
     unit: 'sq.ft',
@@ -115,7 +116,6 @@ const App: React.FC = () => {
   const [historyItems, setHistoryItems] = useState<SavedBillData[]>([]);
   const [trashItems, setTrashItems] = useState<SavedBillData[]>([]);
 
-  // --- Check Auth on Mount ---
   useEffect(() => {
     const currentUser = getCurrentUser();
     setUser(currentUser);
@@ -129,11 +129,9 @@ const App: React.FC = () => {
       }));
     }
     setIsLoadingAuth(false);
-    
     initGoogleDrive().catch(e => console.error("Drive Init Error", e));
   }, []);
 
-  // --- Debounce Search ---
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
@@ -141,9 +139,8 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // --- App Load Effects ---
   useEffect(() => {
-    if (!user) return; // Only load app data if logged in
+    if (!user) return; 
     
     setAccess(checkSubscriptionAccess());
     setProfiles(getProfiles());
@@ -202,7 +199,6 @@ const App: React.FC = () => {
     }
   }, [user]);
 
-  // --- Auto Save Draft ---
   useEffect(() => {
     if (!user) return;
     
@@ -216,7 +212,7 @@ const App: React.FC = () => {
         items,
         gstEnabled,
         gstRate,
-        advanceAmount: '', // Legacy
+        advanceAmount: '', 
         payments,
         disclaimer
       });
@@ -273,20 +269,24 @@ const App: React.FC = () => {
      return `INV-${(history.length + 1).toString().padStart(3, '0')}`;
   };
 
-  const calculateItemArea = (len: number, wid: number, qty: number, unit: string) => {
+  const calculateItemArea = (len: number, wid: number, h: number, qty: number, unit: string) => {
     const q = parseFloat(String(qty)) || 1;
     const l = parseFloat(String(len)) || 0;
     const w = parseFloat(String(wid)) || 0;
+    const ht = parseFloat(String(h)) || 0;
     
-    if (unit === 'nos') return q;
-    else if (unit === 'rft') return l * q;
-    else return l * w * q; // sq.ft
+    // Universal Logic
+    if (['sq.ft', 'sq.mt'].includes(unit)) return l * w * q;
+    if (['cu.ft', 'cu.mt'].includes(unit)) return l * w * ht * q;
+    if (['rft', 'r.mt'].includes(unit)) return l * q;
+    // For simple units (Nos, Kg, Ton, etc), return quantity
+    return q; 
   };
 
-  const calculateAmount = (len: number, wid: number, qty: number, rate: number, unit: string) => {
-    const area = calculateItemArea(len, wid, qty, unit);
+  const calculateAmount = (len: number, wid: number, h: number, qty: number, rate: number, unit: string) => {
+    const totalQty = calculateItemArea(len, wid, h, qty, unit);
     const r = parseFloat(String(rate)) || 0;
-    return area * r;
+    return totalQty * r;
   };
 
   const handleAddItem = () => {
@@ -295,17 +295,19 @@ const App: React.FC = () => {
     // Sanitize Inputs
     const len = Number(currentItem.length) || 0;
     const wid = Number(currentItem.width) || 0;
+    const ht = Number(currentItem.height) || 0;
     const qty = Number(currentItem.quantity) || 1;
     const rt = Number(currentItem.rate) || 0;
     const unt = currentItem.unit || 'sq.ft';
 
-    const amount = calculateAmount(len, wid, qty, rt, unt);
+    const amount = calculateAmount(len, wid, ht, qty, rt, unt);
 
     const newItem: BillItem = {
       id: editingId || Date.now().toString(),
       description: currentItem.description,
       length: len,
       width: wid,
+      height: ht,
       quantity: qty,
       unit: unt,
       rate: rt,
@@ -320,14 +322,15 @@ const App: React.FC = () => {
         setItems(prev => [...prev, newItem]);
     }
 
-    // Reset Form but keep useful context like floor
+    // Reset Form but keep useful context
     setCurrentItem(prev => ({
       description: '',
       length: 0,
       width: 0,
+      height: 0,
       quantity: 1,
       rate: 0,
-      unit: 'sq.ft',
+      unit: prev.unit || 'sq.ft',
       floor: prev.floor
     }));
   };
@@ -345,6 +348,7 @@ const App: React.FC = () => {
         description: '',
         length: 0,
         width: 0,
+        height: 0,
         quantity: 1,
         rate: 0,
         unit: 'sq.ft',
@@ -357,13 +361,13 @@ const App: React.FC = () => {
   };
 
   const handleVoiceConfirm = (parsed: ParsedBillItem) => {
-    // Only update state if parsing was successful
     if (!parsed) return;
 
     setCurrentItem(prev => ({
       description: parsed.description,
       length: parsed.length || 0,
       width: parsed.width || 0,
+      height: parsed.height || 0,
       quantity: parsed.quantity || 1,
       rate: parsed.rate || 0,
       unit: parsed.unit as any,
@@ -393,15 +397,12 @@ const App: React.FC = () => {
      setPayments(prev => prev.filter(p => p.id !== id));
   };
 
-  // Memoize Totals to avoid expensive recalculations on every render
+  // Memoize Totals
   const totals = useMemo(() => {
     const subTotal = items.reduce((acc, item) => acc + item.amount, 0);
-    const totalArea = items.reduce((acc, item) => {
-       let area = 0;
-       if (item.unit === 'sq.ft') area = item.length * item.width * (item.quantity || 1);
-       else if (item.unit === 'rft') area = item.length * (item.quantity || 1);
-       else area = item.quantity || 0;
-       return acc + area;
+    const totalQty = items.reduce((acc, item) => {
+       const qty = calculateItemArea(item.length, item.width, item.height || 0, item.quantity, item.unit);
+       return acc + qty;
     }, 0);
     
     const rate = gstRate || 18;
@@ -410,7 +411,7 @@ const App: React.FC = () => {
     const advance = payments ? payments.reduce((sum, p) => sum + p.amount, 0) : 0;
     const balance = grandTotal - advance;
 
-    return { subTotal, totalArea, gst, grandTotal, advance, balance };
+    return { subTotal, totalQty, gst, grandTotal, advance, balance };
   }, [items, gstEnabled, gstRate, payments]);
 
   const handleSaveBill = () => {
@@ -564,7 +565,7 @@ const App: React.FC = () => {
      if (navigator.share) {
         try {
            await navigator.share({
-              title: 'POP Bill',
+              title: 'Contractor Bill',
               text: text,
               url: window.location.href
            });
@@ -578,7 +579,6 @@ const App: React.FC = () => {
   };
 
   const handleHistoryDownloadPdf = (bill: SavedBillData) => {
-      // Re-calculate details on fly for history downloads
       const subTotal = bill.items.reduce((acc, item) => acc + item.amount, 0);
       const rate = bill.gstRate || 18;
       const gst = bill.gstEnabled ? subTotal * (rate / 100) : 0;
@@ -656,6 +656,13 @@ const App: React.FC = () => {
      };
   };
 
+  // Check if current unit is volumetric (requires height)
+  const isVolumetric = ['cu.ft', 'cu.mt'].includes(currentItem.unit || '');
+  // Check if current unit is simple (no dimensions)
+  const isSimpleUnit = ['nos', 'kg', 'ton', 'lsum', 'point', 'hours', 'days', '%', 'bag', 'box', 'pkt', 'ltr'].includes(currentItem.unit || '');
+  // Check if current unit is linear
+  const isLinear = ['rft', 'r.mt'].includes(currentItem.unit || '');
+
   if (isLoadingAuth) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 text-indigo-600"><div className="animate-spin text-2xl"><Loader2 className="w-10 h-10 animate-spin" /></div></div>;
   }
@@ -668,7 +675,7 @@ const App: React.FC = () => {
      return (
         <>
           <div className="bg-slate-900 text-white p-4 flex justify-between items-center safe-area-top">
-             <span className="font-bold text-lg">POP Bill Master</span>
+             <span className="font-bold text-lg">{t.appTitle}</span>
              <button onClick={() => { logoutUser(); setUser(null); }} className="text-sm underline opacity-80">Logout</button>
           </div>
           <SubscriptionPlans onSuccess={(updatedUser) => { setUser(updatedUser); setAccess(checkSubscriptionAccess()); }} planId={user.planId} remainingDays={access.daysLeft} />
@@ -741,7 +748,8 @@ const App: React.FC = () => {
         {/* --- DETAILS TAB --- */}
         {activeTab === 'details' && (
           <div className="space-y-6 animate-slide-up">
-            
+            {/* ... (User Profile & Details Content remains same, no change needed here) ... */}
+            {/* Reusing existing Detail Tab content structure to save token space as logic hasn't changed here */}
             {/* User Profile Card */}
             <div className="card p-5">
                 <div className="flex justify-between items-center mb-5">
@@ -929,51 +937,72 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-7 gap-4 mb-6">
-                <div className="col-span-2 sm:col-span-2">
+              {/* Universal Input Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-8 gap-4 mb-6">
+                <div className="col-span-2 sm:col-span-3">
                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.floor} <span className="text-slate-300 font-normal">(Opt)</span></label>
                    <input list="floors" placeholder="e.g. Ground Floor" className="input-field" value={currentItem.floor || ''} onChange={e => setCurrentItem({...currentItem, floor: e.target.value})} />
                    <datalist id="floors">{Object.values(t.floors).map(f => <option key={f} value={f} />)}</datalist>
                 </div>
                 <div className="col-span-2 sm:col-span-5">
                   <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.description}</label>
-                  <input type="text" placeholder="e.g. Living Room Ceiling" className="input-field" value={currentItem.description} onChange={e => setCurrentItem({...currentItem, description: e.target.value})} />
+                  <input type="text" placeholder="e.g. Work Description" className="input-field" value={currentItem.description} onChange={e => setCurrentItem({...currentItem, description: e.target.value})} />
                 </div>
-                <div className="col-span-1">
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.length}</label>
-                  <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center" value={currentItem.length || ''} onChange={e => setCurrentItem({...currentItem, length: parseFloat(e.target.value)})} disabled={currentItem.unit === 'nos'} />
+                
+                {/* Dynamic Unit Dropdown */}
+                <div className={`col-span-2 ${isSimpleUnit ? 'sm:col-span-3' : 'sm:col-span-2'}`}>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.unit}</label>
+                  <select className="input-field appearance-none text-center" value={currentItem.unit} onChange={e => setCurrentItem({...currentItem, unit: e.target.value as any})}>
+                    {CONSTRUCTION_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                  </select>
                 </div>
-                <div className="col-span-1">
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.width}</label>
-                  <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center" value={currentItem.width || ''} onChange={e => setCurrentItem({...currentItem, width: parseFloat(e.target.value)})} disabled={currentItem.unit !== 'sq.ft'} />
-                </div>
+
+                {/* Dimensions (Hidden if Simple Unit) */}
+                {!isSimpleUnit && (
+                    <>
+                        <div className="col-span-1">
+                            <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.length}</label>
+                            <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center" value={currentItem.length || ''} onChange={e => setCurrentItem({...currentItem, length: parseFloat(e.target.value)})} />
+                        </div>
+                        {/* Width Hidden if Linear */}
+                        {!isLinear && (
+                            <div className="col-span-1">
+                                <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.width}</label>
+                                <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center" value={currentItem.width || ''} onChange={e => setCurrentItem({...currentItem, width: parseFloat(e.target.value)})} />
+                            </div>
+                        )}
+                        {/* Height Only for Volumetric */}
+                        {isVolumetric && (
+                            <div className="col-span-1">
+                                <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.height}</label>
+                                <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center" value={currentItem.height || ''} onChange={e => setCurrentItem({...currentItem, height: parseFloat(e.target.value)})} />
+                            </div>
+                        )}
+                    </>
+                )}
+
                 <div className="col-span-1">
                   <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.quantity}</label>
                   <input type="number" inputMode="decimal" min="1" placeholder="1" className="input-field text-center" value={currentItem.quantity || ''} onChange={e => setCurrentItem({...currentItem, quantity: parseFloat(e.target.value)})} />
                 </div>
-                <div className={`col-span-1 ${currentItem.unit === 'nos' ? 'sm:col-span-2' : ''}`}>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.unit}</label>
-                  <select className="input-field appearance-none text-center" value={currentItem.unit} onChange={e => setCurrentItem({...currentItem, unit: e.target.value as any})}>
-                    <option value="sq.ft">{t.sqft}</option>
-                    <option value="rft">{t.rft}</option>
-                    <option value="nos">{t.nos}</option>
-                  </select>
-                </div>
-                {currentItem.unit !== 'nos' && (
-                <div className="col-span-1">
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Total Area</label>
-                  <div className="input-field bg-slate-100 dark:bg-slate-800 text-center flex items-center justify-center font-bold text-slate-700 dark:text-slate-200 truncate">
-                     {calculateItemArea(currentItem.length || 0, currentItem.width || 0, currentItem.quantity || 1, currentItem.unit || 'sq.ft').toFixed(2)}
-                  </div>
-                </div>
+                
+                {/* Read-Only Total Calc (Area/Volume/Total Qty) */}
+                {!isSimpleUnit && (
+                    <div className="col-span-1">
+                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.totalArea}</label>
+                    <div className="input-field bg-slate-100 dark:bg-slate-800 text-center flex items-center justify-center font-bold text-slate-700 dark:text-slate-200 truncate">
+                        {calculateItemArea(currentItem.length || 0, currentItem.width || 0, currentItem.height || 0, currentItem.quantity || 1, currentItem.unit || 'sq.ft').toFixed(2)}
+                    </div>
+                    </div>
                 )}
+                
                 <div className="col-span-1">
                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.rate}</label>
                    <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center font-bold text-slate-700 dark:text-white" value={currentItem.rate || ''} onChange={e => setCurrentItem({...currentItem, rate: parseFloat(e.target.value)})} />
                 </div>
-                <div className="col-span-1 flex items-end">
+                <div className="col-span-2 sm:col-span-1 flex items-end">
                    <div className="w-full h-[46px] bg-slate-900 dark:bg-black px-3 rounded-xl border border-transparent text-right font-mono font-bold text-green-400 flex items-center justify-end shadow-inner tracking-widest text-lg overflow-hidden">
-                      {calculateAmount(currentItem.length || 0, currentItem.width || 0, currentItem.quantity || 1, currentItem.rate || 0, currentItem.unit || 'sq.ft').toFixed(0)}
+                      {calculateAmount(currentItem.length || 0, currentItem.width || 0, currentItem.height || 0, currentItem.quantity || 1, currentItem.rate || 0, currentItem.unit || 'sq.ft').toFixed(0)}
                    </div>
                 </div>
               </div>
@@ -990,6 +1019,7 @@ const App: React.FC = () => {
             </div>
 
             <div className="card overflow-hidden">
+               {/* Search Bar... */}
                {items.length > 0 && (
                   <div className="p-3 border-b border-slate-100 dark:border-slate-800 flex gap-2 bg-slate-50/50 dark:bg-slate-900">
                      <div className="relative flex-1">
@@ -1018,9 +1048,19 @@ const App: React.FC = () => {
                                </div>
                                <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
                                  <span className="font-medium text-slate-700 dark:text-slate-300">
-                                   {item.unit === 'sq.ft' && <span>{item.length} x {item.width} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * item.width * (item.quantity || 1)).toFixed(2)}</span></span>}
-                                   {item.unit === 'rft' && <span>{item.length} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * (item.quantity || 1)).toFixed(2)}</span></span>}
-                                   {item.unit === 'nos' && <span>{item.quantity > 1 ? `${item.quantity} Nos` : '1 No'}</span>}
+                                   {/* Adaptive Display based on Unit */}
+                                   {['sq.ft', 'sq.mt'].includes(item.unit) && (
+                                       <span>{item.length} x {item.width} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * item.width * (item.quantity || 1)).toFixed(2)}</span></span>
+                                   )}
+                                   {['cu.ft', 'cu.mt'].includes(item.unit) && (
+                                       <span>{item.length}x{item.width}x{item.height} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * item.width * (item.height || 0) * (item.quantity || 1)).toFixed(2)}</span></span>
+                                   )}
+                                   {['rft', 'r.mt'].includes(item.unit) && (
+                                       <span>{item.length} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * (item.quantity || 1)).toFixed(2)}</span></span>
+                                   )}
+                                   {!['sq.ft', 'sq.mt', 'cu.ft', 'cu.mt', 'rft', 'r.mt'].includes(item.unit) && (
+                                       <span>{item.quantity}</span>
+                                   )}
                                  </span>
                                  <span className="text-xs uppercase bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500">{item.unit}</span>
                                  <span className="text-slate-300 dark:text-slate-600">|</span>
@@ -1040,7 +1080,7 @@ const App: React.FC = () => {
                     </div>
                   )}
                </div>
-               
+               {/* Footer of list... */}
                {items.length > 0 && (
                   <div className="p-3 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wide">
                      <span>Total Items: {items.length}</span>
@@ -1048,11 +1088,12 @@ const App: React.FC = () => {
                   </div>
                )}
             </div>
-
+            
+            {/* Bill Summary Card (Existing) */}
             <div className="card p-5 sm:p-6 space-y-4">
                <h3 className="font-bold text-lg border-b border-slate-100 dark:border-slate-800 pb-3 mb-2 flex items-center gap-2"><FileText className="w-5 h-5 text-indigo-600" />{t.billSummary}</h3>
                
-               <div className="flex justify-between text-slate-600 dark:text-slate-400 text-sm font-medium"><span>{t.totalArea}</span><span className="font-bold text-slate-900 dark:text-white text-base">{totals.totalArea.toFixed(2)} <span className="text-xs font-normal text-slate-500">sq.ft/rft</span></span></div>
+               <div className="flex justify-between text-slate-600 dark:text-slate-400 text-sm font-medium"><span>{t.totalArea}</span><span className="font-bold text-slate-900 dark:text-white text-base">{totals.totalQty.toFixed(2)}</span></div>
                <div className="flex justify-between text-slate-600 dark:text-slate-400 text-sm font-medium"><span>{t.subTotal}</span><span className="font-bold text-slate-900 dark:text-white text-base">₹{totals.subTotal.toFixed(2)}</span></div>
                
                <div className="flex items-center justify-between py-2">
@@ -1080,6 +1121,7 @@ const App: React.FC = () => {
                   <span className="text-3xl font-extrabold text-indigo-600 dark:text-indigo-400 tracking-tight">₹{totals.grandTotal.toFixed(2)}</span>
                </div>
 
+               {/* Payment History and Disclaimer Logic (retained) */}
                <div className="pt-5 mt-2 border-t-2 border-dashed border-slate-200 dark:border-slate-800">
                   <h4 className="font-bold text-xs text-slate-500 uppercase mb-4 flex justify-between items-center tracking-wider">{t.paymentHistory}<span className="text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded">Total: ₹{totals.advance.toFixed(2)}</span></h4>
                   

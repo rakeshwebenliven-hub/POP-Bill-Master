@@ -1,7 +1,8 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ParsedBillItem } from '../types';
-import { APP_TEXT } from '../constants';
+import { APP_TEXT, CONSTRUCTION_UNITS } from '../constants';
 import { Mic, X, Check, MessageSquare, AlertTriangle, Pencil, ChevronDown, Loader2 } from 'lucide-react';
 
 interface VoiceEntryModalProps {
@@ -10,14 +11,12 @@ interface VoiceEntryModalProps {
   onConfirm: (item: ParsedBillItem) => void;
 }
 
-type UnitMode = 'sq.ft' | 'rft' | 'nos';
-
 const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onConfirm }) => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [parsedItem, setParsedItem] = useState<ParsedBillItem | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [targetUnit, setTargetUnit] = useState<UnitMode>('sq.ft');
+  const [targetUnit, setTargetUnit] = useState<string>('sq.ft');
   const [targetFloor, setTargetFloor] = useState<string>('');
   const [customFloor, setCustomFloor] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -38,7 +37,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         recognitionRef.current = new SpeechRecognition();
         recognitionRef.current.continuous = true;
         recognitionRef.current.interimResults = true;
-        recognitionRef.current.lang = 'en-IN'; // Indian English for best accent support
+        recognitionRef.current.lang = 'en-IN'; 
 
         recognitionRef.current.onstart = () => { setIsListening(true); setError(null); };
         
@@ -47,7 +46,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           for (let i = 0; i < event.results.length; i++) {
              finalTranscript += event.results[i][0].transcript;
           }
-          // Simple whitespace normalization, no word replacement
           finalTranscript = finalTranscript.replace(/\s+/g, ' ');
           setTranscript(finalTranscript);
         };
@@ -74,7 +72,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         setIsProcessing(true);
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
         
-        // Debounce parsing to prevent UI lag on Android
         debounceTimerRef.current = setTimeout(() => {
             const floorToUse = targetFloor === 'custom' ? customFloor : targetFloor;
             const parsed = parseLocalTranscript(transcript, targetUnit, floorToUse);
@@ -99,123 +96,103 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     return text.split(' ').map(word => map[word.toLowerCase()] || word).join(' ');
   };
 
-  // Robust Parser Logic
-  const parseLocalTranscript = (text: string, unitMode: UnitMode, manualFloor: string): ParsedBillItem => {
-    // No auto-correction map. Just normalize numbers.
+  const parseLocalTranscript = (text: string, unitMode: string, manualFloor: string): ParsedBillItem => {
     let processingText = normalizeNumbers(text);
     
-    let length = 0, width = 0, quantity = 1, rate = 0, floor = manualFloor;
+    let length = 0, width = 0, height = 0, quantity = 1, rate = 0, floor = manualFloor;
 
-    // Basic technical normalizations for math only
     processingText = processingText.toLowerCase()
         .replace(/\b(by|buy|bye|bai|be|into|cross)\b/g, 'x')
         .replace(/\b(ret|red|kimat|bhav|bhaav|ka)\b/g, 'rate');
 
-    // Extract Floor (Basic keywords only)
     if (!floor) {
         if (processingText.match(/\b(ground|gf)\b/)) floor = 'Ground Floor';
         else if (processingText.match(/\b(first|1st|ff)\b/)) floor = '1st Floor';
         else if (processingText.match(/\b(second|2nd|sf)\b/)) floor = '2nd Floor';
-        else if (processingText.match(/\b(third|3rd)\b/)) floor = '3rd Floor';
-        else if (processingText.match(/\b(basement)\b/)) floor = 'Basement';
     }
 
-    // Helper: Find Rate (Priority 1)
+    // Helper: Find Rate
     const extractRate = (txt: string): { val: number, cleanTxt: string } => {
-        // Matches: "rate 95", "@95", "95 rupees"
-        // Negative Lookahead (?!\s*\d) ensures we don't match "12" in "10 by 12" as a rate if it happens to precede "rate" word accidentally, or vice versa.
-        // We strictly look for "rate/price/rs" keywords.
         const rateRegex = /(\d+(?:\.\d+)?)\s*(?:rs|rupees?)|(?:rs|rupees?)\s*(\d+(?:\.\d+)?)|(?:rate|price|@)\s*[:\-\s]*(\d+(?:\.\d+)?)/i;
         const match = txt.match(rateRegex);
         if (match) {
             const val = parseFloat(match[1] || match[2] || match[3]);
             return { val, cleanTxt: txt.replace(match[0], ' ') };
         }
-        
-        // Implicit Rate Check (Scan for dangling numbers at end of string if explicit keywords missing)
-        // This is risky, so we only do it if the string is short or structured
         return { val: 0, cleanTxt: txt };
     };
 
-    if (unitMode === 'nos') {
-        // 1. Quantity First (e.g. "4 pieces")
-        // We prioritize explicit quantity keywords
-        const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items)/i; 
+    // Check if unit is Volumetric (3D)
+    const isVolumetric = ['cu.ft', 'cu.mt'].includes(unitMode);
+    const isArea = ['sq.ft', 'sq.mt'].includes(unitMode);
+    const isLinear = ['rft', 'r.mt'].includes(unitMode);
+    const isSimple = !isVolumetric && !isArea && !isLinear;
+
+    if (isSimple) {
+        // Quantity First logic for simple units
+        const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items|bags|boxes|pkts|points|hrs|days|hours|kg|tons)/i; 
         const qtyMatch = processingText.match(qtyRegex);
         if (qtyMatch) {
             quantity = parseInt(qtyMatch[1]);
             processingText = processingText.replace(qtyMatch[0], ' ');
         }
-
-        // 2. Rate Second
+        
         const rateRes = extractRate(processingText);
-        if (rateRes.val > 0) {
-            rate = rateRes.val;
-            processingText = rateRes.cleanTxt;
-        }
+        if (rateRes.val > 0) { rate = rateRes.val; processingText = rateRes.cleanTxt; }
 
-        // 3. Fallbacks (If specific keywords missing, rely on order: Qty -> Rate)
+        // Fallbacks
         const numbers = (processingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
-        if (quantity === 1 && !qtyMatch && numbers.length > 0) {
-             quantity = numbers.shift()!; 
-        }
-        if (rate === 0 && numbers.length > 0) {
-            rate = numbers[0];
-            // Remove rate from description text approximation
-            // (Regex replacement is safer but this works for fallback)
-        }
+        if (quantity === 1 && !qtyMatch && numbers.length > 0) quantity = numbers.shift()!;
+        if (rate === 0 && numbers.length > 0) rate = numbers[0];
 
     } else {
-        // Sq.ft / R.ft: Rate First to protect dimensions from being confused
+        // Dimensions Logic (3D, 2D, 1D)
         const rateRes = extractRate(processingText);
-        if (rateRes.val > 0) {
-            rate = rateRes.val;
-            processingText = rateRes.cleanTxt;
-        }
+        if (rateRes.val > 0) { rate = rateRes.val; processingText = rateRes.cleanTxt; }
 
-        if (unitMode === 'sq.ft') {
-            const dimXRegex = /(\d+(?:\.\d+)?)\s*(?:x|\*)\s*(\d+(?:\.\d+)?)/;
-            const dimXMatch = processingText.match(dimXRegex);
-            if (dimXMatch) {
-                length = parseFloat(dimXMatch[1]);
-                width = parseFloat(dimXMatch[2]);
-                processingText = processingText.replace(dimXMatch[0], ' ');
-            } else {
-                const numbers = (processingText.match(/(\d+(\.\d+)?)/g) || []).map(Number);
-                if (numbers.length >= 2) {
-                    length = numbers[0];
-                    width = numbers[1];
-                    // Remove these numbers from text
-                    // We must be careful not to remove rate if it wasn't extracted yet (but it should have been)
-                }
-            }
-        } else if (unitMode === 'rft') {
-            const numbers = (processingText.match(/(\d+(\.\d+)?)/g) || []).map(Number);
-            if (numbers.length > 0) {
+        const numbers = (processingText.match(/(\d+(\.\d+)?)/g) || []).map(Number);
+
+        if (isVolumetric) {
+            // Need 3 numbers: L x W x H
+            if (numbers.length >= 3) {
                 length = numbers[0];
+                width = numbers[1];
+                height = numbers[2];
             }
+        } else if (isArea) {
+             // Need 2 numbers: L x W
+             if (numbers.length >= 2) {
+                 length = numbers[0];
+                 width = numbers[1];
+             }
+        } else if (isLinear) {
+             // Need 1 number: L
+             if (numbers.length >= 1) {
+                 length = numbers[0];
+             }
         }
     }
 
-    // Cleanup Description: Remove keywords and numbers that were used
+    // Cleanup Description
     let cleanDesc = processingText
       .replace(/\b(ground|first|second|floor)\b/gi, '')
       .replace(/\b(rate|price|rs|rupees)\b/gi, '')
-      .replace(/\b(sq\.?ft|rft|nos|pieces)\b/gi, '')
-      .replace(/[0-9]/g, '') // Remove remaining digits
-      .replace(/[^\w\s]/gi, '') // Remove special chars
+      .replace(/\b(sq\.?ft|rft|nos|pieces|cu\.?ft)\b/gi, '')
+      .replace(/[0-9]/g, '') 
+      .replace(/[^\w\s]/gi, '') 
       .replace(/\s+/g, ' ')
       .trim();
     
     if (cleanDesc) cleanDesc = cleanDesc.charAt(0).toUpperCase() + cleanDesc.slice(1);
   
-    return { description: cleanDesc || "Item", length, width, quantity, rate, unit: unitMode, floor };
+    return { description: cleanDesc || "Item", length, width, height, quantity, rate, unit: unitMode, floor };
   };
 
   const getHintText = () => {
-     if (targetUnit === 'sq.ft') return "Try: 'Bedroom 10 by 12 rate 95'";
-     if (targetUnit === 'rft') return "Try: 'Cornice 100 feet rate 45'";
-     return "Try: 'Panel 4 pieces rate 250'";
+     if (targetUnit === 'sq.ft') return t.voiceHints.sqft;
+     if (targetUnit === 'cu.ft') return t.voiceHints.cuft;
+     if (targetUnit === 'rft') return t.voiceHints.rft;
+     return t.voiceHints.nos;
   };
 
   if (!isOpen) return null;
@@ -256,13 +233,13 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
 
              <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 block text-left">Unit Type</label>
-                <div className="grid grid-cols-3 gap-2">
-                    {(['sq.ft', 'rft', 'nos'] as const).map((u) => (
-                    <button key={u} onClick={() => setTargetUnit(u)} className={`py-2 px-1 rounded-lg text-sm font-bold border-2 transition-all ${targetUnit === u ? 'border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-500' : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-indigo-300'}`}>
-                        {u === 'sq.ft' ? t.sqft : u === 'rft' ? t.rft : t.nos}
-                    </button>
-                    ))}
-                </div>
+                <select 
+                    value={targetUnit} 
+                    onChange={(e) => setTargetUnit(e.target.value)} 
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white font-medium"
+                >
+                    {CONSTRUCTION_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                </select>
              </div>
           </div>
           
@@ -302,16 +279,34 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                   <span className="font-bold text-slate-800 dark:text-slate-100 uppercase">{parsedItem.unit}</span>
                 </div>
                 <div>
-                  <span className="text-xs text-indigo-700 dark:text-indigo-400 block">{parsedItem.unit === 'sq.ft' ? 'Size (LxW)' : parsedItem.unit === 'rft' ? 'Length' : 'Qty'}</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-100">{parsedItem.unit === 'sq.ft' ? `${parsedItem.length} x ${parsedItem.width}` : parsedItem.unit === 'rft' ? `${parsedItem.length}` : `${parsedItem.quantity}`}</span>
+                  <span className="text-xs text-indigo-700 dark:text-indigo-400 block">
+                    {['sq.ft','sq.mt'].includes(parsedItem.unit) ? 'Size (LxW)' : ['cu.ft','cu.mt'].includes(parsedItem.unit) ? 'Size (LxWxH)' : ['rft','r.mt'].includes(parsedItem.unit) ? 'Length' : 'Qty'}
+                  </span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-100">
+                    {['sq.ft','sq.mt'].includes(parsedItem.unit) ? `${parsedItem.length} x ${parsedItem.width}` : 
+                     ['cu.ft','cu.mt'].includes(parsedItem.unit) ? `${parsedItem.length} x ${parsedItem.width} x ${parsedItem.height}` : 
+                     ['rft','r.mt'].includes(parsedItem.unit) ? `${parsedItem.length}` : `${parsedItem.quantity}`}
+                  </span>
                 </div>
                 <div>
                   <span className="text-xs text-indigo-700 dark:text-indigo-400 block">Rate</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-100">₹{parsedItem.rate}</span>
                 </div>
                 <div>
-                  <span className="text-xs text-indigo-700 dark:text-indigo-400 block">Amount</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-100">₹{(parsedItem.unit === 'sq.ft' ? (parsedItem.length * parsedItem.width * parsedItem.quantity * parsedItem.rate) : parsedItem.unit === 'rft' ? (parsedItem.length * parsedItem.quantity * parsedItem.rate) : (parsedItem.quantity * parsedItem.rate)).toFixed(0)}</span>
+                    {/* Logic duplicated for display preview */}
+                    {(() => {
+                        let amt = 0;
+                        if(['sq.ft','sq.mt'].includes(parsedItem.unit)) amt = parsedItem.length * parsedItem.width * parsedItem.quantity * parsedItem.rate;
+                        else if(['cu.ft','cu.mt'].includes(parsedItem.unit)) amt = parsedItem.length * parsedItem.width * (parsedItem.height||0) * parsedItem.quantity * parsedItem.rate;
+                        else if(['rft','r.mt'].includes(parsedItem.unit)) amt = parsedItem.length * parsedItem.quantity * parsedItem.rate;
+                        else amt = parsedItem.quantity * parsedItem.rate;
+                        return (
+                            <div>
+                                <span className="text-xs text-indigo-700 dark:text-indigo-400 block">Amount</span>
+                                <span className="font-semibold text-slate-800 dark:text-slate-100">₹{amt.toFixed(0)}</span>
+                            </div>
+                        )
+                    })()}
                 </div>
               </div>
             </div>

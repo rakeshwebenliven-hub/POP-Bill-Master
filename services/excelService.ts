@@ -20,7 +20,7 @@ export const generateExcel = (
 
   // Header Info
   const headerData = [
-    ["POP CONTRACTOR BILL"],
+    ["CONTRACTOR BILL / INVOICE"],
     [],
     ["Bill No:", billNumber],
     ["Date:", formattedDate],
@@ -48,7 +48,6 @@ export const generateExcel = (
       headerData.push([`${link.platform}:`, link.url]);
     });
   } else if (contractor.socialMedia) {
-    // Fallback for legacy
     headerData.push(["Social:", contractor.socialMedia]);
   }
 
@@ -60,55 +59,76 @@ export const generateExcel = (
     []
   );
 
+  // Check if any item uses height/depth (Volumetric)
+  const hasHeight = items.some(item => (item.height && item.height > 0));
+
   // Table Headers
   const tableHeaders = [
     "S.No",
     "Floor",
     "Description",
     "Length",
-    "Width",
+    "Width"
+  ];
+
+  if (hasHeight) {
+      tableHeaders.push("Height/Depth");
+  }
+
+  tableHeaders.push(
     "Qty",
     "Unit",
-    "Area/Qty",
+    "Total Qty",
     "Rate",
     "Amount"
-  ];
+  );
 
   // Table Data
   let subTotal = 0;
 
   const tableData = items.map((item, index) => {
-    // Logic:
-    // If unit is rft, area is length * quantity
-    // If unit is sq.ft, area is length * width * quantity
-    // If unit is nos, area is quantity (LxW not relevant for total area summary usually, but implies count)
-    
     const quantity = item.quantity || 1;
-    let totalItemArea = 0;
+    let totalItemValue = 0;
     
-    if (item.unit === 'sq.ft') {
-        totalItemArea = item.length * item.width * quantity;
-    } else if (item.unit === 'rft') {
-        totalItemArea = item.length * quantity;
+    // Universal Calculation Engine
+    if (['sq.ft', 'sq.mt'].includes(item.unit)) {
+        // Area
+        totalItemValue = item.length * item.width * quantity;
+    } else if (['cu.ft', 'cu.mt'].includes(item.unit)) {
+        // Volume
+        const h = item.height || 0;
+        totalItemValue = item.length * item.width * h * quantity;
+    } else if (['rft', 'r.mt'].includes(item.unit)) {
+        // Linear
+        totalItemValue = item.length * quantity;
     } else {
-        // Nos
-        totalItemArea = quantity; 
+        // Simple (Nos, Kg, Ton, Lsum, etc.)
+        totalItemValue = quantity; 
     }
     
     subTotal += item.amount;
 
-    return [
+    const row = [
       index + 1,
       item.floor || '',
       item.description,
-      item.unit === 'nos' ? '-' : item.length,
-      (item.unit === 'rft' || item.unit === 'nos') ? '-' : item.width,
+      ['nos', 'pcs', 'kg', 'ton', 'lsum', 'point', 'hours', 'days', '%', 'bag', 'box', 'pkt', 'ltr'].includes(item.unit) ? '-' : item.length,
+      ['rft', 'r.mt', 'nos', 'pcs', 'kg', 'ton', 'lsum', 'point', 'hours', 'days', '%', 'bag', 'box', 'pkt', 'ltr'].includes(item.unit) ? '-' : item.width
+    ];
+
+    if (hasHeight) {
+        row.push(['cu.ft', 'cu.mt'].includes(item.unit) ? (item.height || 0) : '-');
+    }
+
+    row.push(
       quantity,
       item.unit,
-      totalItemArea.toFixed(2),
+      totalItemValue.toFixed(2),
       item.rate,
       item.amount.toFixed(2)
-    ];
+    );
+
+    return row;
   });
 
   // Calculations
@@ -116,55 +136,54 @@ export const generateExcel = (
   const gstAmount = gstEnabled ? subTotal * (rate / 100) : 0;
   const grandTotal = subTotal + gstAmount;
   
-  // Calculate Total Advance from payments array
+  // Calculate Total Advance
   const totalAdvance = payments.reduce((sum, p) => sum + p.amount, 0);
   const balanceDue = grandTotal - totalAdvance;
 
-  // Footer
+  // Footer - adjust indentation based on columns
+  const padCols = hasHeight ? 8 : 7;
+  const padding = Array(padCols).fill("");
+
   const footerData = [
     [],
-    ["", "", "", "", "", "", "", "Sub Total:", "", "", subTotal.toFixed(2)]
+    [...padding, "Sub Total:", "", "", subTotal.toFixed(2)]
   ];
 
   if (gstEnabled) {
     footerData.push(
-      ["", "", "", "", "", "", "", `GST (${rate}%):`, "", "", gstAmount.toFixed(2)]
+      [...padding, `GST (${rate}%):`, "", "", gstAmount.toFixed(2)]
     );
   }
 
   footerData.push(
-    ["", "", "", "", "", "", "", "Grand Total:", "", "", grandTotal.toFixed(2)]
+    [...padding, "Grand Total:", "", "", grandTotal.toFixed(2)]
   );
 
-  // Add individual payment rows
   if (payments.length > 0) {
     payments.forEach(payment => {
       const dateStr = payment.date ? `(${new Date(payment.date).toLocaleDateString()})` : '';
       const note = payment.notes ? `(${payment.notes})` : '';
-      // Only add space if both parts exist or just cleanup
       const label = `Advance Received ${dateStr} ${note}:`;
       
       footerData.push(
-        ["", "", "", "", "", "", "", label, "", "", `-${payment.amount.toFixed(2)}`]
+        [...padding, label, "", "", `-${payment.amount.toFixed(2)}`]
       );
     });
 
-    // Total Advance Line (optional, but good for clarity if multiple payments exist)
     if (payments.length > 1) {
       footerData.push(
-        ["", "", "", "", "", "", "", "Total Advance:", "", "", `-${totalAdvance.toFixed(2)}`]
+        [...padding, "Total Advance:", "", "", `-${totalAdvance.toFixed(2)}`]
       );
     }
   }
 
   footerData.push(
-    ["", "", "", "", "", "", "", "Balance Due:", "", "", balanceDue.toFixed(2)]
+    [...padding, "Balance Due:", "", "", balanceDue.toFixed(2)]
   );
 
-  // Add Account Details (Structured)
+  // Add Account Details
   if (contractor.bankDetails) {
      const bd = contractor.bankDetails;
-     // Check if at least one field is filled
      if (bd.holderName || bd.bankName || bd.accountNumber || bd.ifscCode || bd.upiId || bd.branchAddress) {
         footerData.push([], ["Bank Account Details:"]);
         if (bd.holderName) footerData.push(["Account Name:", bd.holderName]);
@@ -175,7 +194,6 @@ export const generateExcel = (
         if (bd.branchAddress) footerData.push(["Address:", bd.branchAddress]);
      }
   } else if (contractor.accountDetails && contractor.accountDetails.trim()) {
-    // Legacy fallback
     footerData.push(
       [],
       ["Bank Account Details:"],
@@ -183,7 +201,6 @@ export const generateExcel = (
     );
   }
 
-  // Add Disclaimer
   if (disclaimer && disclaimer.trim()) {
     footerData.push(
       [],
@@ -194,29 +211,31 @@ export const generateExcel = (
   }
 
   const wsData = [...headerData, tableHeaders, ...tableData, ...footerData];
-
-  // Create Workbook
   const ws = XLSX.utils.aoa_to_sheet(wsData);
 
   // Column Widths
-  ws['!cols'] = [
+  const colWidths = [
     { wch: 5 },  // S.No
     { wch: 12 }, // Floor
-    { wch: 25 }, // Description
+    { wch: 30 }, // Description
     { wch: 10 }, // Length
     { wch: 10 }, // Width
+  ];
+  if (hasHeight) colWidths.push({ wch: 10 }); // Height
+  colWidths.push(
     { wch: 6 },  // Qty
     { wch: 8 },  // Unit
-    { wch: 12 }, // Area
+    { wch: 12 }, // Total Qty
     { wch: 10 }, // Rate
     { wch: 15 }  // Amount
-  ];
+  );
+  
+  ws['!cols'] = colWidths;
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Bill");
 
-  // Download
   const safeBillNum = (billNumber || 'Draft').replace(/[^a-z0-9]/gi, '_');
-  const fileName = `POP_Bill_${safeBillNum}.xlsx`;
+  const fileName = `Bill_${safeBillNum}.xlsx`;
   XLSX.writeFile(wb, fileName);
 };
