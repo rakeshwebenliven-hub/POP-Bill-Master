@@ -50,13 +50,13 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         };
 
         recognitionRef.current.onerror = (event: any) => {
-          setIsListening(false);
-          if (event.error === 'not-allowed') {
-             setError("Microphone permission denied.");
-          } else if (event.error === 'no-speech') {
+          if (event.error === 'no-speech') {
+             // Ignore no-speech errors to keep UI clean
+          } else if (event.error === 'not-allowed') {
              setIsListening(false);
+             setError("Microphone permission denied.");
           } else {
-             console.warn("Speech Error:", event.error);
+             setIsListening(false);
           }
         };
 
@@ -67,13 +67,16 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     }
     
     return () => {
-      if (recognitionRef.current) recognitionRef.current.stop();
+      if (recognitionRef.current) {
+          try { recognitionRef.current.stop(); } catch(e) {}
+      }
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
   }, [isOpen]); 
 
   useEffect(() => {
-    if (transcript) {
+    // Debounce the parsing to prevent UI lag on every syllable
+    if (transcript || transcript === '') {
         setIsProcessing(true);
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
         
@@ -82,10 +85,8 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             try {
                 const parsed = parseLocalTranscript(transcript, targetUnit, floorToUse);
                 setParsedItem(parsed);
-                // Auto-switch unit if parser detected a different one
-                if (parsed.unit && parsed.unit !== targetUnit) {
-                   setTargetUnit(parsed.unit);
-                }
+                // NOTE: We do NOT auto-switch targetUnit here anymore to prevent fighting the user's selection.
+                // The blue preview card will show the detected unit from the parser, but the dropdown remains stable.
             } catch (e) {
                 console.error("Parsing error", e);
             }
@@ -98,19 +99,16 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     if (error === t.speechNotSupported) return;
     
     if (isListening) {
-      recognitionRef.current?.stop();
+      try { recognitionRef.current?.stop(); } catch(e) {}
     } else {
-      if (!transcript) { setParsedItem(null); setError(null); }
+      // Clear previous transcript if starting fresh after a stop? 
+      // User might want to append, but usually for a new item, we clear.
+      // setTranscript(''); 
       try { 
           recognitionRef.current?.start(); 
       } catch (e) { 
-          try {
-              recognitionRef.current?.stop();
-              setTimeout(() => recognitionRef.current?.start(), 100);
-          } catch (retryErr) {
-              console.error(retryErr);
-              setError("Could not start microphone. Please try again.");
-          }
+          console.error(e);
+          setError("Mic error. Try again.");
       }
     }
   };
@@ -127,6 +125,10 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
   };
 
   const parseLocalTranscript = (text: string, currentUnitMode: string, manualFloor: string): ParsedBillItem => {
+    if (!text.trim()) {
+        return { description: '', length: 0, width: 0, height: 0, quantity: 1, rate: 0, unit: currentUnitMode, floor: manualFloor };
+    }
+
     // 1. Normalize
     let processingText = normalizeNumbers(text).toLowerCase();
     
@@ -146,16 +148,26 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         else if (processingText.match(/\b(fifth|5th)\b/)) floor = '5th Floor';
     }
 
-    // Auto-Detect Unit from Keywords
+    // Keyword detection only happens if we are in 'Auto' mode or similar, 
+    // BUT we prioritize the `currentUnitMode` passed in (which corresponds to targetUnit state).
+    // We only override if explicit keywords exist that CONTRADICT the current mode strongly.
     if (processingText.match(/\b(sq\.?ft|square\s*feet)\b/)) detectedUnit = 'sq.ft';
     else if (processingText.match(/\b(cu\.?ft|cubic\s*feet)\b/)) detectedUnit = 'cu.ft';
     else if (processingText.match(/\b(r\.?ft|running\s*feet)\b/)) detectedUnit = 'rft';
     else if (processingText.match(/\b(brass)\b/)) detectedUnit = 'brass';
+    // Only switch to 'nos' if explicit keywords found AND we aren't already in a dimensional mode that might misinterpret 'pieces'
     else if (processingText.match(/\b(pcs|pieces|nos|numbers|bags|boxes|pkts|points|sets)\b/)) detectedUnit = 'nos';
 
+    // Force unit back to selected mode if no strong keyword override found
+    // This allows the user to say "10 by 12" with "Sq.ft" selected and get sq.ft logic
+    if (!processingText.match(/\b(sq\.?ft|cu\.?ft|r\.?ft|brass|pcs|nos)\b/)) {
+        detectedUnit = currentUnitMode;
+    }
+
     // 2. EXTRACT & REMOVE RATE FIRST
+    // Standard Regex (No Lookbehind) for max compatibility
     const ratePatterns = [
-        // rate 50, price 50, @ 50
+        // rate 50, price 50, @ 50, rate of 50
         /\b(?:rate|price|@|bhav|ret|cost|at|of)\s*[:\-\s]*(\d+(?:\.\d+)?)/i, 
         // rs 50, inr 50
         /\b(?:rs|rupees?|inr)\.?\s*(\d+(?:\.\d+)?)/i,
@@ -166,6 +178,8 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     for (const pat of ratePatterns) {
         const match = processingText.match(pat);
         if (match) {
+            // Safety: Ensure we didn't match a dimension like "12" in "10 12 rate 50" if the regex was too greedy
+            // The patterns above require a keyword, so they are generally safe.
             rate = parseFloat(match[1]);
             processingText = processingText.replace(match[0], ' '); 
             break; 
@@ -197,16 +211,16 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                  if (remNumbers.length > 0) rate = remNumbers[0];
             }
         } else {
-             // Implicit Qty
+             // Implicit Qty (Just numbers: "4 500" -> 4 qty, 500 rate)
              if (numbers.length > 0) {
                  if (rate > 0) {
-                     quantity = numbers[0];
+                     quantity = numbers[0]; // Rate already found, so this is Qty
                  } else {
                      if (numbers.length === 1) {
-                         quantity = numbers[0];
+                         quantity = numbers[0]; // Just one number -> Qty
                      } else if (numbers.length >= 2) {
                          quantity = numbers[0];
-                         rate = numbers[1]; // Implicit rate at end
+                         rate = numbers[1]; // Implicit: Qty then Rate
                      }
                  }
              }
@@ -224,7 +238,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                  if (numbers.length >= 1) { length = numbers[0]; }
             }
         } else {
-            // No explicit rate found
+            // No explicit rate found, check count of numbers to guess
             const requiredDims = isVolumetric ? 3 : (isArea ? 2 : 1);
             
             if (numbers.length === requiredDims) {
@@ -245,7 +259,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                     length = dimNumbers[0];
                 }
             } else {
-                 // Partial
+                 // Partial dims
                  if (isVolumetric && numbers.length >= 2) [length, width] = numbers;
                  else if (isArea && numbers.length >= 1) length = numbers[0];
                  else if (isLinear && numbers.length >= 1) length = numbers[0];
@@ -253,19 +267,21 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         }
     }
 
-    // 4. Cleanup
+    // 4. Cleanup Description
     let cleanDesc = processingText
       .replace(/\b(ground|first|second|floor|third|fourth|fifth)\b/gi, '')
       .replace(/\b(rate|price|rs|rupees|bhav|ret|cost|at|of)\b/gi, '')
       .replace(/\b(sq\.?ft|rft|nos|pieces|cu\.?ft|brass)\b/gi, '')
-      .replace(/[0-9.]/g, '') 
-      .replace(/[^\w\s]/gi, '') 
+      .replace(/[0-9.]/g, '') // Remove numbers
+      .replace(/[^\w\s]/gi, '') // Remove special chars
       .replace(/\s+/g, ' ')
       .trim();
     
     if (cleanDesc) cleanDesc = cleanDesc.charAt(0).toUpperCase() + cleanDesc.slice(1);
+    // If description is empty but we parsed data, provide a default
+    if (!cleanDesc && (length || quantity > 1)) cleanDesc = "Item";
   
-    return { description: cleanDesc || "Item", length, width, height, quantity, rate, unit: detectedUnit, floor };
+    return { description: cleanDesc, length, width, height, quantity, rate, unit: detectedUnit, floor };
   };
 
   const getHintText = () => {
