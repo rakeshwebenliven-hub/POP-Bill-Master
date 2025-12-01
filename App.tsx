@@ -146,6 +146,9 @@ const App: React.FC = () => {
   // --- Cloud Sync State ---
   const [isSyncing, setIsSyncing] = useState(false);
   
+  // --- Toast State ---
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
   // --- App Logic ---
   const t = APP_TEXT;
 
@@ -236,6 +239,12 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'details' | 'items'>('details');
   const [historyItems, setHistoryItems] = useState<SavedBillData[]>([]);
   const [trashItems, setTrashItems] = useState<SavedBillData[]>([]);
+
+  // Toast Helper
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -352,9 +361,9 @@ const App: React.FC = () => {
       setIsSyncing(true);
       try {
           await backupToDrive();
-          alert("Backup successful!");
+          showToast("Backup successful!");
       } catch (e) {
-          alert("Backup failed. Check internet or Drive permissions.");
+          showToast("Backup failed. Check internet.", 'error');
       } finally {
           setIsSyncing(false);
       }
@@ -366,11 +375,11 @@ const App: React.FC = () => {
       try {
           const success = await restoreFromDrive();
           if (success) {
-              alert("Restore successful! Reloading...");
+              showToast("Restore successful! Reloading...");
               window.location.reload();
           }
       } catch (e) {
-          alert("Restore failed.");
+          showToast("Restore failed.", 'error');
       } finally {
           setIsSyncing(false);
       }
@@ -441,8 +450,10 @@ const App: React.FC = () => {
     if (editingId) {
        setItems(prev => prev.map(item => item.id === editingId ? { ...newItem, isPaid: item.isPaid } : item));
        setEditingId(null);
+       showToast("Item updated successfully");
     } else {
         setItems(prev => [...prev, newItem]);
+        showToast("Item added");
     }
 
     // Reset Form but keep useful context
@@ -481,6 +492,7 @@ const App: React.FC = () => {
 
   const handleRemoveItem = (id: string) => {
     setItems(prev => prev.filter(item => item.id !== id));
+    showToast("Item removed");
   };
 
   const handleToggleItemPaid = (id: string) => {
@@ -520,6 +532,7 @@ const App: React.FC = () => {
     setNewPaymentAmount('');
     setNewPaymentNote('');
     setNewPaymentDate(new Date().toISOString().split('T')[0]);
+    showToast("Payment added");
   };
 
   const handleDeletePayment = (id: string) => {
@@ -559,7 +572,7 @@ const App: React.FC = () => {
     });
     // Refresh history from storage instead of manual append to handle updates correctly
     setHistoryItems(getHistory());
-    alert(t.billSaved);
+    showToast(t.billSaved);
   };
 
   const handleNewBill = () => {
@@ -572,6 +585,7 @@ const App: React.FC = () => {
      setBillNumber(generateNextBillNumber(historyItems));
      setBillDate(new Date().toISOString().split('T')[0]);
      setPaymentStatus('Pending');
+     showToast("New bill started");
   };
 
   const handleLoadBill = (bill: SavedBillData) => {
@@ -608,23 +622,27 @@ const App: React.FC = () => {
        setPayments([]);
     }
     setIsHistoryModalOpen(false);
+    showToast(t.loadDraft);
   };
 
   const handleDeleteBill = (id: string) => {
      deleteFromHistory(id);
      setHistoryItems(getHistory());
      setTrashItems(getTrash());
+     showToast("Moved to trash");
   };
 
   const handleRestoreBill = (id: string) => {
      restoreFromTrash(id);
      setHistoryItems(getHistory());
      setTrashItems(getTrash());
+     showToast("Bill restored");
   };
 
   const handlePermanentDelete = (id: string) => {
      permanentDelete(id);
      setTrashItems(getTrash());
+     showToast("Bill deleted forever");
   };
 
   const handleUpdateHistoryStatus = (id: string, status: PaymentStatus) => {
@@ -636,7 +654,7 @@ const App: React.FC = () => {
      const newProfile = saveProfile(contractor);
      setProfiles(prev => [...prev, newProfile]);
      setSelectedProfileId(newProfile.id);
-     alert(t.profileSaved);
+     showToast(t.profileSaved);
   };
 
   const handleLoadProfile = (id: string) => {
@@ -644,6 +662,7 @@ const App: React.FC = () => {
      if (profile) {
         setContractor(profile.details);
         setSelectedProfileId(id);
+        showToast("Profile loaded");
      }
   };
 
@@ -659,7 +678,7 @@ const App: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 500 * 1024) {
-         alert("Image too large. Please select under 500KB.");
+         showToast("Image too large. Please select under 500KB.", 'error');
          return;
       }
       const reader = new FileReader();
@@ -820,6 +839,14 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-40 font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200">
       
+      {/* Toast Notification */}
+      {toast && (
+         <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl animate-in slide-in-from-top duration-300 ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+             {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+             <span className="font-medium">{toast.message}</span>
+         </div>
+      )}
+
       {/* --- HEADER --- */}
       <header className="sticky top-0 z-30 safe-area-top glass-panel backdrop-blur-xl bg-indigo-600/95 dark:bg-indigo-950/90 text-white shadow-lg border-b border-white/10">
         <div className="max-w-4xl mx-auto px-4 py-3">
@@ -1091,20 +1118,20 @@ const App: React.FC = () => {
                     <>
                         <div className="col-span-1">
                             <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.length}</label>
-                            <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center" value={currentItem.length || ''} onChange={e => setCurrentItem({...currentItem, length: parseFloat(e.target.value)})} />
+                            <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center" value={currentItem.length || ''} onChange={e => setCurrentItem({...currentItem, length: parseFloat(e.target.value)})} onFocus={(e) => e.target.select()} />
                         </div>
                         {/* Width Hidden if Linear */}
                         {!isLinear && (
                             <div className="col-span-1">
                                 <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.width}</label>
-                                <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center" value={currentItem.width || ''} onChange={e => setCurrentItem({...currentItem, width: parseFloat(e.target.value)})} />
+                                <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center" value={currentItem.width || ''} onChange={e => setCurrentItem({...currentItem, width: parseFloat(e.target.value)})} onFocus={(e) => e.target.select()} />
                             </div>
                         )}
                         {/* Height Only for Volumetric or Brass */}
                         {isVolumetric && (
                             <div className="col-span-1">
                                 <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.height}</label>
-                                <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center" value={currentItem.height || ''} onChange={e => setCurrentItem({...currentItem, height: parseFloat(e.target.value)})} />
+                                <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center" value={currentItem.height || ''} onChange={e => setCurrentItem({...currentItem, height: parseFloat(e.target.value)})} onFocus={(e) => e.target.select()} />
                             </div>
                         )}
                     </>
@@ -1112,7 +1139,7 @@ const App: React.FC = () => {
 
                 <div className="col-span-1">
                   <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.quantity}</label>
-                  <input type="number" inputMode="decimal" min="1" placeholder="1" className="input-field text-center" value={currentItem.quantity || ''} onChange={e => setCurrentItem({...currentItem, quantity: parseFloat(e.target.value)})} />
+                  <input type="number" inputMode="decimal" min="1" placeholder="1" className="input-field text-center" value={currentItem.quantity || ''} onChange={e => setCurrentItem({...currentItem, quantity: parseFloat(e.target.value)})} onFocus={(e) => e.target.select()} />
                 </div>
                 
                 {/* Read-Only Total Calc (Area/Volume/Total Qty) */}
@@ -1127,7 +1154,7 @@ const App: React.FC = () => {
                 
                 <div className="col-span-1">
                    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">{t.rate}</label>
-                   <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center font-bold text-slate-700 dark:text-white" value={currentItem.rate || ''} onChange={e => setCurrentItem({...currentItem, rate: parseFloat(e.target.value)})} />
+                   <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center font-bold text-slate-700 dark:text-white" value={currentItem.rate || ''} onChange={e => setCurrentItem({...currentItem, rate: parseFloat(e.target.value)})} onFocus={(e) => e.target.select()} />
                 </div>
                 <div className="col-span-2 sm:col-span-1 flex items-end">
                    <div className="w-full h-[46px] bg-slate-900 dark:bg-black px-3 rounded-xl border border-transparent text-right font-mono font-bold text-green-400 flex items-center justify-end shadow-inner tracking-widest text-lg overflow-hidden">
@@ -1205,7 +1232,7 @@ const App: React.FC = () => {
                   </label>
                   {gstEnabled && (
                      <div className="flex items-center gap-2">
-                        <input type="number" value={gstRate} onChange={e => setGstRate(parseFloat(e.target.value))} className="w-14 p-1.5 text-center bg-slate-100 dark:bg-slate-800 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
+                        <input type="number" value={gstRate} onChange={e => setGstRate(parseFloat(e.target.value))} onFocus={(e) => e.target.select()} className="w-14 p-1.5 text-center bg-slate-100 dark:bg-slate-800 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
                         <span className="text-sm font-bold text-slate-500">%</span>
                      </div>
                   )}
@@ -1227,7 +1254,7 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-12 gap-3 mb-4">
                      <input type="date" className="col-span-12 sm:col-span-3 p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-white dark:bg-slate-800 dark:text-white outline-none focus:border-green-500" value={newPaymentDate} onChange={e => setNewPaymentDate(e.target.value)} />
                      <div className="col-span-7 sm:col-span-3">
-                        <input type="number" inputMode="decimal" min="0" className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-white dark:bg-slate-800 dark:text-white outline-none focus:border-green-500 font-bold" placeholder="Amount" value={newPaymentAmount} onChange={e => setNewPaymentAmount(e.target.value)} />
+                        <input type="number" inputMode="decimal" min="0" className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-white dark:bg-slate-800 dark:text-white outline-none focus:border-green-500 font-bold" placeholder="Amount" value={newPaymentAmount} onChange={e => setNewPaymentAmount(e.target.value)} onFocus={(e) => e.target.select()} />
                      </div>
                      <input type="text" className="col-span-12 sm:col-span-5 p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-white dark:bg-slate-800 dark:text-white outline-none focus:border-green-500" placeholder="Note (e.g. Advance)" value={newPaymentNote} onChange={e => setNewPaymentNote(e.target.value)} />
                      <button onClick={handleAddPayment} className="col-span-5 sm:col-span-1 p-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 flex items-center justify-center shadow-md shadow-green-200 dark:shadow-none active:scale-95 transition"><Plus className="w-5 h-5" /></button>

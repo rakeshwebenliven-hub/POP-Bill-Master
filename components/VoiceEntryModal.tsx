@@ -112,10 +112,11 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
 
     // 2. EXTRACT & REMOVE RATE FIRST (Priority Pass)
     // We look for patterns like "rate 95", "@ 95", "95 rs", "rs 95", "price 95"
+    // Regex logic: Word boundary for keywords, optional spacing/colons, capturing digits/decimals
     const ratePatterns = [
-        /(?:rate|price|@|bhav|ret|cost)\s*[:\-\s]*(\d+(?:\.\d+)?)/i,
-        /(?:rs|rupees?|inr)\.?\s*(\d+(?:\.\d+)?)/i,
-        /(\d+(?:\.\d+)?)\s*(?:rs|rupees?|inr)/i
+        /\b(?:rate|price|@|bhav|ret|cost|at)\b\s*[:\-\s]*(\d+(?:\.\d+)?)/i,
+        /\b(?:rs|rupees?|inr)\.?\s*(\d+(?:\.\d+)?)/i,
+        /(\d+(?:\.\d+)?)\s*(?:rs|rupees?|inr)\b/i
     ];
 
     for (const pat of ratePatterns) {
@@ -140,26 +141,36 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     if (isSimple) {
         // --- LOGIC FOR NOS/PCS ---
         // "Flowers 4 pieces" -> We look for the explicit unit keyword
-        const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items|bags|boxes|pkts|points|hrs|days|hours|kg|tons|visits|months|sets|kw|hp|quintals)/i; 
+        const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items|bags|boxes|pkts|points|hrs|days|hours|kg|tons|visits|months|sets|kw|hp|quintals)\b/i; 
         const qtyMatch = processingText.match(qtyRegex);
         
         if (qtyMatch) {
             quantity = parseFloat(qtyMatch[1]);
             processingText = processingText.replace(qtyMatch[0], ' '); // Remove "4 pieces"
+        } 
+        
+        // Implicit Rate Check for Simple Units
+        // e.g. "Flowers 4 pieces 250" -> 250 should be rate if rate is still 0
+        // e.g. "Flowers 4 250" -> 4 is qty, 250 is rate (if we didn't find specific unit keyword)
+        
+        const remainingNumbers = (processingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
+        
+        if (!qtyMatch) {
+             // If we didn't find "4 pieces" explicitly, assume first number is Qty
+             if (remainingNumbers.length > 0) {
+                 quantity = remainingNumbers[0];
+                 // If there's a second number and rate is 0, it's the rate
+                 if (rate === 0 && remainingNumbers.length > 1) {
+                     rate = remainingNumbers[remainingNumbers.length - 1];
+                 }
+             }
         } else {
-            // No unit keyword found? Look for any remaining integers.
-            // If we already found a Rate (e.g. 250), and we see "4", then 4 is Qty.
-            const remainingNumbers = (processingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
-            if (remainingNumbers.length > 0) {
-                // First remaining number is Quantity
-                quantity = remainingNumbers[0];
-                
-                // If we STILL haven't found a rate, and there's a second number, that's the rate (Implicit: "4 250")
-                if (rate === 0 && remainingNumbers.length > 1) {
-                    rate = remainingNumbers[remainingNumbers.length - 1];
-                }
-            }
+             // If we DID find Qty explicitly ("4 pieces"), check for remaining number as Rate
+             if (rate === 0 && remainingNumbers.length > 0) {
+                 rate = remainingNumbers[0];
+             }
         }
+
     } else {
         // --- LOGIC FOR DIMENSIONS (SQ.FT / CU.FT / R.FT) ---
         // "10 x 12" or "10 12"
