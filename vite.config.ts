@@ -89,6 +89,15 @@ export default defineConfig({
   ],
   build: {
     outDir: 'dist',
-    sourcemap: false // Disable sourcemaps for production to reduce size
+    sourcemap: false, // Disable sourcemaps for production to reduce size
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          utils: ['xlsx', 'jspdf', 'jspdf-autotable'],
+          icons: ['lucide-react']
+        }
+      }
+    }
   }
 });

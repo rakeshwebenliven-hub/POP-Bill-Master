@@ -1,6 +1,5 @@
-
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Trash2, Download, FileText, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, FileDown, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, AlertTriangle, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
+import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile } from './types';
 import { APP_TEXT, SUBSCRIPTION_PLANS, CONSTRUCTION_UNITS } from './constants';
 import { generateExcel } from './services/excelService';
@@ -8,12 +7,14 @@ import { generatePDF } from './services/pdfService';
 import { saveDraft, loadDraft, saveToHistory, getHistory, deleteFromHistory, saveProfile, getProfiles, deleteProfile, updateBillStatus, getTrash, restoreFromTrash, permanentDelete } from './services/storageService';
 import { getCurrentUser, checkSubscriptionAccess, logoutUser } from './services/authService';
 import { initGoogleDrive, backupToDrive, restoreFromDrive } from './services/googleDriveService';
-import HistoryModal from './components/HistoryModal';
-import CalculatorModal from './components/CalculatorModal';
-import VoiceEntryModal from './components/VoiceEntryModal';
-import OnboardingFlow from './components/OnboardingFlow';
-import SubscriptionPlans from './components/SubscriptionPlans';
-import ShareModal from './components/ShareModal';
+
+// Lazy Loaded Components
+const HistoryModal = lazy(() => import('./components/HistoryModal'));
+const CalculatorModal = lazy(() => import('./components/CalculatorModal'));
+const VoiceEntryModal = lazy(() => import('./components/VoiceEntryModal'));
+const OnboardingFlow = lazy(() => import('./components/OnboardingFlow'));
+const SubscriptionPlans = lazy(() => import('./components/SubscriptionPlans'));
+const ShareModal = lazy(() => import('./components/ShareModal'));
 
 interface SwipeableItemProps {
   item: BillItem;
@@ -120,6 +121,16 @@ const SwipeableItem: React.FC<SwipeableItemProps> = ({
     </div>
   );
 };
+
+// --- Loader Component for Suspense ---
+const LoadingFallback = () => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-lg flex items-center gap-3">
+      <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+      <span className="font-medium text-slate-700 dark:text-slate-200">Loading...</span>
+    </div>
+  </div>
+);
 
 
 const App: React.FC = () => {
@@ -868,23 +879,31 @@ const App: React.FC = () => {
   }
 
   if (!user) {
-    return <OnboardingFlow onComplete={(newUser) => { setUser(newUser); setAccess(checkSubscriptionAccess()); }} />;
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+         <OnboardingFlow onComplete={(newUser) => { setUser(newUser); setAccess(checkSubscriptionAccess()); }} />
+      </Suspense>
+    );
   }
   
   if (!access.hasAccess) {
      return (
-        <>
+        <Suspense fallback={<LoadingFallback />}>
           <div className="bg-slate-900 text-white p-4 flex justify-between items-center safe-area-top">
              <span className="font-bold text-lg">{t.appTitle}</span>
              <button onClick={() => { logoutUser(); setUser(null); }} className="text-sm underline opacity-80">Logout</button>
           </div>
           <SubscriptionPlans onSuccess={(updatedUser) => { setUser(updatedUser); setAccess(checkSubscriptionAccess()); }} planId={user.planId} remainingDays={access.daysLeft} />
-        </>
+        </Suspense>
      );
   }
   
   if (showSubscription) {
-     return <SubscriptionPlans onSuccess={(updatedUser) => { setUser(updatedUser); setAccess(checkSubscriptionAccess()); setShowSubscription(false); }} planId={user.planId} remainingDays={access.daysLeft} onBack={() => setShowSubscription(false)} />;
+     return (
+       <Suspense fallback={<LoadingFallback />}>
+          <SubscriptionPlans onSuccess={(updatedUser) => { setUser(updatedUser); setAccess(checkSubscriptionAccess()); setShowSubscription(false); }} planId={user.planId} remainingDays={access.daysLeft} onBack={() => setShowSubscription(false)} />
+       </Suspense>
+     );
   }
 
   return (
@@ -1349,19 +1368,21 @@ const App: React.FC = () => {
       </div>
 
       {/* --- MODALS --- */}
-      <HistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} history={historyItems} trash={trashItems} onLoad={handleLoadBill} onDelete={handleDeleteBill} onRestore={handleRestoreBill} onPermanentDelete={handlePermanentDelete} onUpdateStatus={handleUpdateHistoryStatus} onDownloadPdf={handleHistoryDownloadPdf} onDownloadExcel={handleHistoryDownloadExcel} />
-      <CalculatorModal isOpen={isCalcOpen} onClose={() => setIsCalcOpen(false)} />
-      <VoiceEntryModal isOpen={isVoiceModalOpen} onClose={() => setIsVoiceModalOpen(false)} onConfirm={handleVoiceConfirm} />
-      <ShareModal 
-        isOpen={isShareModalOpen} 
-        onClose={() => setIsShareModalOpen(false)}
-        onShareText={(status) => handleShareText(status)}
-        onSharePdf={(status) => handleShareFile('pdf', status)}
-        onShareExcel={(status) => handleShareFile('excel', status)}
-        onDownloadPdf={(status) => handleDownloadFile('pdf', status)}
-        onDownloadExcel={(status) => handleDownloadFile('excel', status)}
-        previewText={generateBillText()}
-      />
+      <Suspense fallback={<LoadingFallback />}>
+         {isHistoryModalOpen && <HistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} history={historyItems} trash={trashItems} onLoad={handleLoadBill} onDelete={handleDeleteBill} onRestore={handleRestoreBill} onPermanentDelete={handlePermanentDelete} onUpdateStatus={handleUpdateHistoryStatus} onDownloadPdf={handleHistoryDownloadPdf} onDownloadExcel={handleHistoryDownloadExcel} />}
+         {isCalcOpen && <CalculatorModal isOpen={isCalcOpen} onClose={() => setIsCalcOpen(false)} />}
+         {isVoiceModalOpen && <VoiceEntryModal isOpen={isVoiceModalOpen} onClose={() => setIsVoiceModalOpen(false)} onConfirm={handleVoiceConfirm} />}
+         {isShareModalOpen && <ShareModal 
+            isOpen={isShareModalOpen} 
+            onClose={() => setIsShareModalOpen(false)}
+            onShareText={(status) => handleShareText(status)}
+            onSharePdf={(status) => handleShareFile('pdf', status)}
+            onShareExcel={(status) => handleShareFile('excel', status)}
+            onDownloadPdf={(status) => handleDownloadFile('pdf', status)}
+            onDownloadExcel={(status) => handleDownloadFile('excel', status)}
+            previewText={generateBillText()}
+         />}
+      </Suspense>
     </div>
   );
 };
