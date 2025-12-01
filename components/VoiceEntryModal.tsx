@@ -45,13 +45,21 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           for (let i = 0; i < event.results.length; i++) {
              finalTranscript += event.results[i][0].transcript;
           }
+          // Basic normalization of spaces
           finalTranscript = finalTranscript.replace(/\s+/g, ' ');
           setTranscript(finalTranscript);
         };
 
         recognitionRef.current.onerror = (event: any) => {
           setIsListening(false);
-          if (event.error === 'not-allowed') setError("Microphone permission denied.");
+          if (event.error === 'not-allowed') {
+             setError("Microphone permission denied.");
+          } else if (event.error === 'no-speech') {
+             // Ignore no-speech errors to keep UI clean, just stop listening state
+             setIsListening(false);
+          } else {
+             console.warn("Speech Error:", event.error);
+          }
         };
 
         recognitionRef.current.onend = () => setIsListening(false);
@@ -71,22 +79,39 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         setIsProcessing(true);
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
         
+        // Debounce parsing to avoid UI lag on mobile
         debounceTimerRef.current = setTimeout(() => {
             const floorToUse = targetFloor === 'custom' ? customFloor : targetFloor;
-            const parsed = parseLocalTranscript(transcript, targetUnit, floorToUse);
-            setParsedItem(parsed);
+            try {
+                const parsed = parseLocalTranscript(transcript, targetUnit, floorToUse);
+                setParsedItem(parsed);
+            } catch (e) {
+                console.error("Parsing error", e);
+            }
             setIsProcessing(false);
         }, 400);
     }
   }, [transcript, targetUnit, targetFloor, customFloor]);
 
   const toggleListening = () => {
+    if (error === t.speechNotSupported) return;
+    
     if (isListening) {
       recognitionRef.current?.stop();
     } else {
-      if (error === t.speechNotSupported) return;
       if (!transcript) { setParsedItem(null); setError(null); }
-      try { recognitionRef.current?.start(); } catch (e) { console.error(e); }
+      try { 
+          recognitionRef.current?.start(); 
+      } catch (e) { 
+          // If already started or other state error, try stopping first then start
+          try {
+              recognitionRef.current?.stop();
+              setTimeout(() => recognitionRef.current?.start(), 100);
+          } catch (retryErr) {
+              console.error(retryErr);
+              setError("Could not start microphone. Please try again.");
+          }
+      }
     }
   };
 
@@ -122,17 +147,25 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     }
 
     // 2. EXTRACT & REMOVE RATE FIRST (Priority Pass)
+    // We use standard regex safe for all browsers (No Lookbehind)
     const ratePatterns = [
-        /\b(?:rate|price|@|bhav|ret|cost|at)\b\s*[:\-\s]*(\d+(?:\.\d+)?)/i, // "rate 50"
-        /\b(?:rs|rupees?|inr)\.?\s*(\d+(?:\.\d+)?)/i, // "rs 50"
-        /(?<!\d\s)(\d+(?:\.\d+)?)\s*(?:rs|rupees?|inr)\b/i, // "50 rs", negative lookbehind to avoid "12 50 rs" matching "50" as rate if it was a dimension
-        /(?<!\w)(\d+(?:\.\d+)?)(?=\s*(?:rs|rupees?|inr))/i // Lookahead for currency
+        // Matches: rate 50, price 50, @ 50, bhav 50, at 50
+        /\b(?:rate|price|@|bhav|ret|cost|at)\s*[:\-\s]*(\d+(?:\.\d+)?)/i, 
+        // Matches: rs 50, inr 50
+        /\b(?:rs|rupees?|inr)\.?\s*(\d+(?:\.\d+)?)/i,
+        // Matches: 50 rs, 50 rupees (Ensure we match the number and the currency)
+        /\b(\d+(?:\.\d+)?)\s*(?:rs|rupees?|inr)\b/i
     ];
 
     for (const pat of ratePatterns) {
         const match = processingText.match(pat);
         if (match) {
+            // Check if this "number" is actually part of a dimension like "10 x 12"
+            // If the pattern matched something like "12 rate", we might have an issue, 
+            // but the patterns above are specific to "Rate Keyword + Number" or "Number + Currency".
+            
             rate = parseFloat(match[1]);
+            // Remove the specific matched string to clean it from description/dimensions
             processingText = processingText.replace(match[0], ' '); 
             break; 
         }
@@ -148,25 +181,31 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
 
     if (isSimple) {
         // --- LOGIC FOR NOS/PCS ---
+        // Explicitly look for "4 pieces" or similar patterns
         const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items|bags|boxes|pkts|points|hrs|days|hours|kg|tons|visits|months|sets|kw|hp|quintals)\b/i; 
         const qtyMatch = processingText.match(qtyRegex);
         
         if (qtyMatch) {
             quantity = parseFloat(qtyMatch[1]);
+            // If we haven't found a rate yet, look for dangling numbers
             if (rate === 0) {
+                 // Remove the quantity part string
                  const remainingText = processingText.replace(qtyMatch[0], ' ');
                  const remNumbers = (remainingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
                  if (remNumbers.length > 0) rate = remNumbers[0];
             }
         } else {
-             // Implicit Qty
+             // Implicit Qty (No keyword "pieces")
              if (numbers.length > 0) {
                  if (rate > 0) {
+                     // We already have rate, so first number is Qty
                      quantity = numbers[0];
                  } else {
+                     // No rate found yet. 
                      if (numbers.length === 1) {
                          quantity = numbers[0];
                      } else if (numbers.length >= 2) {
+                         // Assume first is Qty, second is Rate
                          quantity = numbers[0];
                          rate = numbers[1];
                      }
@@ -177,6 +216,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     } else {
         // --- LOGIC FOR DIMENSIONS (SQ.FT / CU.FT / R.FT) ---
         if (rate > 0) {
+            // Rate is known. Fill dimensions from left to right.
             if (isVolumetric) {
                 if (numbers.length >= 3) { [length, width, height] = numbers; }
                 else if (numbers.length === 2) { [length, width] = numbers; }
@@ -190,11 +230,12 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             const requiredDims = isVolumetric ? 3 : (isArea ? 2 : 1);
             
             if (numbers.length === requiredDims) {
+                // Exact match for dims, so no rate
                 if (isVolumetric) [length, width, height] = numbers;
                 else if (isArea) [length, width] = numbers;
                 else if (isLinear) length = numbers[0];
             } else if (numbers.length > requiredDims) {
-                // Assume last number is rate
+                // Extra number found. Assume LAST number is Rate.
                 rate = numbers[numbers.length - 1];
                 const dimNumbers = numbers.slice(0, numbers.length - 1);
                 
@@ -207,6 +248,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                     length = dimNumbers[0];
                 }
             } else {
+                 // Partial dimensions
                  if (isVolumetric && numbers.length >= 2) [length, width] = numbers;
                  else if (isArea && numbers.length >= 1) length = numbers[0];
                  else if (isLinear && numbers.length >= 1) length = numbers[0];
@@ -310,7 +352,14 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
 
           <div className="w-full relative mb-4">
             <div className="relative">
-                <textarea value={transcript} onChange={(e) => setTranscript(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 p-3 pl-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none max-h-24 overflow-y-auto shadow-inner" rows={2} placeholder="Speak details..." />
+                <textarea 
+                    value={transcript} 
+                    onChange={(e) => setTranscript(e.target.value)} 
+                    className="w-full bg-slate-50 dark:bg-slate-800 p-3 pl-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none max-h-24 overflow-y-auto shadow-inner" 
+                    rows={2} 
+                    placeholder="Speak details..." 
+                    autoFocus
+                />
                 <Pencil className="w-3 h-3 absolute right-3 bottom-3 text-slate-400 pointer-events-none" />
             </div>
           </div>
