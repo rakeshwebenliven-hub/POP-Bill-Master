@@ -91,7 +91,13 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
   };
 
   const normalizeNumbers = (text: string): string => {
-    const map: Record<string, string> = { 'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10', 'twenty': '20', 'thirty': '30', 'fifty': '50', 'hundred': '100' };
+    const map: Record<string, string> = { 
+        'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5', 
+        'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10', 
+        'twenty': '20', 'thirty': '30', 'forty': '40', 'fifty': '50', 
+        'sixty': '60', 'seventy': '70', 'eighty': '80', 'ninety': '90', 
+        'hundred': '100' 
+    };
     return text.split(' ').map(word => map[word.toLowerCase()] || word).join(' ');
   };
 
@@ -99,6 +105,9 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     // 1. Normalize Numbers
     let processingText = normalizeNumbers(text).toLowerCase();
     
+    // Normalize Separators: Replace 'by', 'into', 'cross' with 'x'
+    processingText = processingText.replace(/\b(by|buy|bye|bai|be|into|cross)\b/g, 'x');
+
     // Default values
     let length = 0, width = 0, height = 0, quantity = 1, rate = 0, floor = manualFloor;
 
@@ -108,15 +117,17 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         else if (processingText.match(/\b(first|1st|ff)\b/)) floor = '1st Floor';
         else if (processingText.match(/\b(second|2nd|sf)\b/)) floor = '2nd Floor';
         else if (processingText.match(/\b(third|3rd|tf)\b/)) floor = '3rd Floor';
+        else if (processingText.match(/\b(fourth|4th)\b/)) floor = '4th Floor';
+        else if (processingText.match(/\b(fifth|5th)\b/)) floor = '5th Floor';
     }
 
     // 2. EXTRACT & REMOVE RATE FIRST (Priority Pass)
     // We look for patterns like "rate 95", "@ 95", "95 rs", "rs 95", "price 95"
     // Regex logic: Word boundary for keywords, optional spacing/colons, capturing digits/decimals
     const ratePatterns = [
-        /\b(?:rate|price|@|bhav|ret|cost|at)\b\s*[:\-\s]*(\d+(?:\.\d+)?)/i,
-        /\b(?:rs|rupees?|inr)\.?\s*(\d+(?:\.\d+)?)/i,
-        /(\d+(?:\.\d+)?)\s*(?:rs|rupees?|inr)\b/i
+        /\b(?:rate|price|@|bhav|ret|cost|at)\b\s*[:\-\s]*(\d+(?:\.\d+)?)/i, // "rate 50"
+        /\b(?:rs|rupees?|inr)\.?\s*(\d+(?:\.\d+)?)/i, // "rs 50"
+        /(\d+(?:\.\d+)?)\s*(?:rs|rupees?|inr)\b/i     // "50 rs"
     ];
 
     for (const pat of ratePatterns) {
@@ -129,10 +140,10 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         }
     }
 
-    // 3. NORMALIZE SEPARATORS
-    processingText = processingText.replace(/\b(by|buy|bye|bai|be|into|cross)\b/g, 'x');
-
-    // 4. UNIT-SPECIFIC PARSING
+    // 3. UNIT SPECIFIC PARSING
+    // Extract remaining numbers from the text
+    const numbers = (processingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
+    
     const isVolumetric = ['cu.ft', 'cu.mt', 'brass'].includes(unitMode);
     const isArea = ['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(unitMode);
     const isLinear = ['rft', 'r.mt'].includes(unitMode);
@@ -140,69 +151,88 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
 
     if (isSimple) {
         // --- LOGIC FOR NOS/PCS ---
-        // "Flowers 4 pieces" -> We look for the explicit unit keyword
+        // Explicit Qty check: "4 pieces"
         const qtyRegex = /(\d+)\s*(?:pcs|pieces|nos|numbers|items|bags|boxes|pkts|points|hrs|days|hours|kg|tons|visits|months|sets|kw|hp|quintals)\b/i; 
         const qtyMatch = processingText.match(qtyRegex);
         
         if (qtyMatch) {
             quantity = parseFloat(qtyMatch[1]);
-            processingText = processingText.replace(qtyMatch[0], ' '); // Remove "4 pieces"
-        } 
-        
-        // Implicit Rate Check for Simple Units
-        // e.g. "Flowers 4 pieces 250" -> 250 should be rate if rate is still 0
-        // e.g. "Flowers 4 250" -> 4 is qty, 250 is rate (if we didn't find specific unit keyword)
-        
-        const remainingNumbers = (processingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
-        
-        if (!qtyMatch) {
-             // If we didn't find "4 pieces" explicitly, assume first number is Qty
-             if (remainingNumbers.length > 0) {
-                 quantity = remainingNumbers[0];
-                 // If there's a second number and rate is 0, it's the rate
-                 if (rate === 0 && remainingNumbers.length > 1) {
-                     rate = remainingNumbers[remainingNumbers.length - 1];
-                 }
-             }
+            // Remove explicit quantity from text to look for rate if still 0
+            if (rate === 0) {
+                 const remainingText = processingText.replace(qtyMatch[0], ' ');
+                 const remNumbers = (remainingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
+                 if (remNumbers.length > 0) rate = remNumbers[0];
+            }
         } else {
-             // If we DID find Qty explicitly ("4 pieces"), check for remaining number as Rate
-             if (rate === 0 && remainingNumbers.length > 0) {
-                 rate = remainingNumbers[0];
+             // Implicit Qty (No keyword)
+             // If rate was already found: First remaining number is Qty
+             // If rate NOT found:
+             //   - 1 number -> Qty (Rate 0)
+             //   - 2 numbers -> Qty, Rate
+             if (numbers.length > 0) {
+                 if (rate > 0) {
+                     quantity = numbers[0];
+                 } else {
+                     if (numbers.length === 1) {
+                         quantity = numbers[0];
+                     } else if (numbers.length >= 2) {
+                         quantity = numbers[0];
+                         rate = numbers[1];
+                     }
+                 }
              }
         }
 
     } else {
         // --- LOGIC FOR DIMENSIONS (SQ.FT / CU.FT / R.FT) ---
-        // "10 x 12" or "10 12"
-        const numbers = (processingText.match(/(\d+(\.\d+)?)/g) || []).map(Number);
-
-        if (isVolumetric) {
-            if (numbers.length >= 3) { [length, width, height] = numbers; }
-            else if (numbers.length === 2) { [length, width] = numbers; }
-        } else if (isArea) {
-             if (numbers.length >= 2) { [length, width] = numbers; }
-        } else if (isLinear) {
-             if (numbers.length >= 1) { length = numbers[0]; }
-        }
-        
-        // Implicit Rate Check for Dimensions: 
-        // If we found dimensions, but NO rate, and there are extra numbers at the end...
-        // e.g. "10 12 95" (and we took 10, 12 for L,W) -> 95 is likely rate
-        if (rate === 0) {
-             const usedCount = isVolumetric ? (height>0?3:2) : (isArea?2:1);
-             if (numbers.length > usedCount) {
-                 rate = numbers[numbers.length - 1];
-             }
+        // If rate is found explicitly, just take first N numbers as dimensions
+        if (rate > 0) {
+            if (isVolumetric) {
+                if (numbers.length >= 3) { [length, width, height] = numbers; }
+                else if (numbers.length === 2) { [length, width] = numbers; }
+            } else if (isArea) {
+                 if (numbers.length >= 2) { [length, width] = numbers; }
+            } else if (isLinear) {
+                 if (numbers.length >= 1) { length = numbers[0]; }
+            }
+        } else {
+            // Rate NOT found explicitly. Check for implicit rate at the end.
+            const requiredDims = isVolumetric ? 3 : (isArea ? 2 : 1);
+            
+            if (numbers.length === requiredDims) {
+                // Exact dimensions found, no rate
+                if (isVolumetric) [length, width, height] = numbers;
+                else if (isArea) [length, width] = numbers;
+                else if (isLinear) length = numbers[0];
+            } else if (numbers.length > requiredDims) {
+                // Extra numbers found, assume last is rate
+                rate = numbers[numbers.length - 1];
+                const dimNumbers = numbers.slice(0, numbers.length - 1);
+                
+                if (isVolumetric) {
+                    if (dimNumbers.length >= 3) [length, width, height] = dimNumbers;
+                    else if (dimNumbers.length === 2) [length, width] = dimNumbers; // Partial
+                } else if (isArea) {
+                    if (dimNumbers.length >= 2) [length, width] = dimNumbers;
+                } else if (isLinear) {
+                    length = dimNumbers[0];
+                }
+            } else {
+                // Not enough numbers? Just take what we have
+                 if (isVolumetric && numbers.length >= 2) [length, width] = numbers;
+                 else if (isArea && numbers.length >= 1) length = numbers[0];
+                 else if (isLinear && numbers.length >= 1) length = numbers[0];
+            }
         }
     }
 
-    // 5. CLEANUP DESCRIPTION
+    // 4. CLEANUP DESCRIPTION
     // Remove all numbers, unit names, floor names from the description text
     let cleanDesc = processingText
-      .replace(/\b(ground|first|second|floor)\b/gi, '')
-      .replace(/\b(rate|price|rs|rupees)\b/gi, '')
+      .replace(/\b(ground|first|second|floor|third|fourth|fifth)\b/gi, '')
+      .replace(/\b(rate|price|rs|rupees|bhav|ret|cost|at)\b/gi, '')
       .replace(/\b(sq\.?ft|rft|nos|pieces|cu\.?ft|brass)\b/gi, '')
-      .replace(/[0-9]/g, '') // Remove remaining digits
+      .replace(/[0-9.]/g, '') // Remove digits and decimals
       .replace(/[^\w\s]/gi, '') // Remove punctuation
       .replace(/\s+/g, ' ')
       .trim();
