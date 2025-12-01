@@ -27,8 +27,19 @@ export const loadDraft = (): SavedBillData | null => {
 export const saveToHistory = (data: Omit<SavedBillData, 'id' | 'timestamp'>): SavedBillData => {
   const history = getHistory();
   
-  // Check if bill with same number exists
-  const existingIndex = history.findIndex(b => b.billNumber === data.billNumber);
+  // 1. Try to find by Bill Number
+  let existingIndex = history.findIndex(b => 
+    b.billNumber && data.billNumber &&
+    b.billNumber.trim().toLowerCase() === data.billNumber.trim().toLowerCase()
+  );
+
+  // 2. Fallback: If Bill Number not found or empty, check by Client Name
+  // We match the MOST RECENT bill (first found) for this client to allow editing without duplication.
+  if (existingIndex === -1 && data.client.name) {
+    existingIndex = history.findIndex(b => 
+      b.client.name.trim().toLowerCase() === data.client.name.trim().toLowerCase()
+    );
+  }
 
   if (existingIndex >= 0) {
     // Update existing bill
@@ -43,10 +54,7 @@ export const saveToHistory = (data: Omit<SavedBillData, 'id' | 'timestamp'>): Sa
     // Update in place
     history[existingIndex] = updatedBill;
     
-    // Move updated bill to top of list (optional, but good UX to show recent edits first)
-    // To do that, we remove it and unshift it. 
-    // If we want to keep position, just saving 'history' is enough.
-    // Let's move to top:
+    // Move updated bill to top of list to show recent edits first
     history.splice(existingIndex, 1);
     history.unshift(updatedBill);
     
