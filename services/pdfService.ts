@@ -97,14 +97,22 @@ export const generatePDF = (
   if (client.address) doc.text(client.address, 14, yPos + 11);
   if (client.phone) doc.text(`Phone: ${client.phone}`, 14, yPos + 16);
 
-  // Determine if Height column is needed
-  const hasHeight = items.some(item => (item.height && item.height > 0));
+  // --- Dynamic Column Logic ---
+  const hasFloor = items.some(item => item.floor && item.floor.trim() !== '');
+  
+  // Check if we need the "Size" column. 
+  // If ALL items are simple units (Nos, Kg, etc), we don't need Size.
+  const simpleUnits = ['nos', 'pcs', 'kg', 'ton', 'lsum', 'point', 'hours', 'days', '%', 'bag', 'box', 'pkt', 'ltr', 'visit', 'month', 'kw', 'hp', 'set', 'quintal'];
+  const hasDimensions = items.some(item => !simpleUnits.includes(item.unit));
 
-  const tableHead = [['#', 'Floor', 'Description', 'Size', 'Qty', 'Unit', 'Total', 'Rate', 'Amount']];
-  if (hasHeight) {
-      // Modify header for 3D
-      tableHead[0] = ['#', 'Floor', 'Description', 'L x W x H', 'Qty', 'Unit', 'Total', 'Rate', 'Amount'];
-  }
+  // Determine header row
+  const tableHeadRow = ['#'];
+  if (hasFloor) tableHeadRow.push('Floor');
+  tableHeadRow.push('Description');
+  if (hasDimensions) tableHeadRow.push('Size (LxWxH)');
+  tableHeadRow.push('Qty', 'Unit', 'Total', 'Rate', 'Amount');
+
+  const tableHead = [tableHeadRow];
 
   const tableRows = items.map((item, index) => {
     const qty = item.quantity || 1;
@@ -130,19 +138,43 @@ export const generatePDF = (
       dimString = "-";
     }
 
-    const row = [
-      index + 1,
-      item.floor || '',
-      item.description,
-      dimString,
+    const row: (string | number)[] = [index + 1];
+    if (hasFloor) row.push(item.floor || '');
+    row.push(item.description);
+    if (hasDimensions) row.push(dimString);
+    row.push(
       qty,
       item.unit,
       totalVal.toFixed(2),
       item.rate,
       item.amount.toFixed(2)
-    ];
+    );
     return row;
   });
+
+  // Calculate Column Styles Dynamically
+  let colIndex = 0;
+  const colStyles: any = {
+      [colIndex++]: { cellWidth: 8 } // #
+  };
+  
+  if (hasFloor) {
+      colStyles[colIndex++] = { cellWidth: 20 }; // Floor
+  }
+  
+  // Description width depends on whether we have Dimensions
+  colStyles[colIndex++] = { cellWidth: hasDimensions ? 'auto' : 60 }; // Description
+  
+  if (hasDimensions) {
+      colStyles[colIndex++] = { cellWidth: 25 }; // Size
+  }
+
+  colStyles[colIndex++] = { cellWidth: 10, halign: 'center' }; // Qty
+  colStyles[colIndex++] = { cellWidth: 12 }; // Unit
+  colStyles[colIndex++] = { cellWidth: 18, halign: 'right' }; // Total
+  colStyles[colIndex++] = { cellWidth: 18, halign: 'right' }; // Rate
+  colStyles[colIndex++] = { cellWidth: 25, halign: 'right', fontStyle: 'bold' }; // Amount
+
 
   autoTable(doc, {
     startY: yPos + 25,
@@ -150,17 +182,7 @@ export const generatePDF = (
     body: tableRows,
     theme: 'striped',
     headStyles: { fillColor: primaryColor, textColor: 255, fontStyle: 'bold' },
-    columnStyles: {
-      0: { cellWidth: 8 },
-      1: { cellWidth: 20 },
-      2: { cellWidth: 'auto' },
-      3: { cellWidth: 25 }, // Size col
-      4: { cellWidth: 10, halign: 'center' },
-      5: { cellWidth: 12 },
-      6: { cellWidth: 18, halign: 'right' },
-      7: { cellWidth: 18, halign: 'right' },
-      8: { cellWidth: 25, halign: 'right', fontStyle: 'bold' },
-    },
+    columnStyles: colStyles,
     styles: { fontSize: 8, cellPadding: 2 },
   });
 

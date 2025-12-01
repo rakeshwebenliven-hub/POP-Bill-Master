@@ -58,22 +58,31 @@ export const generateExcel = (
     []
   );
 
-  // Check if any item uses height/depth (Volumetric or Brass)
-  const hasHeight = items.some(item => (item.height && item.height > 0));
+  // --- Dynamic Column Analysis ---
+  
+  // Check if any item has a floor
+  const hasFloor = items.some(item => item.floor && item.floor.trim() !== '');
 
-  // Table Headers
-  const tableHeaders = [
-    "S.No",
-    "Floor",
-    "Description",
-    "Length",
-    "Width"
-  ];
+  // Check if any item needs Length (Not simple unit)
+  const simpleUnits = ['nos', 'pcs', 'kg', 'ton', 'lsum', 'point', 'hours', 'days', '%', 'bag', 'box', 'pkt', 'ltr', 'visit', 'month', 'kw', 'hp', 'set', 'quintal'];
+  const hasLength = items.some(item => !simpleUnits.includes(item.unit));
 
-  if (hasHeight) {
-      tableHeaders.push("Height/Depth");
-  }
+  // Check if any item needs Width (Area, Volume, Brass)
+  const widthUnits = ['sq.ft', 'sq.mt', 'sq.yd', 'acre', 'cu.ft', 'cu.mt', 'brass'];
+  const hasWidth = items.some(item => widthUnits.includes(item.unit) && item.width > 0);
 
+  // Check if any item needs Height (Volume, Brass)
+  const heightUnits = ['cu.ft', 'cu.mt', 'brass'];
+  const hasHeight = items.some(item => heightUnits.includes(item.unit) && item.height && item.height > 0);
+
+  // Table Headers construction
+  const tableHeaders = ["S.No"];
+  if (hasFloor) tableHeaders.push("Floor");
+  tableHeaders.push("Description");
+  if (hasLength) tableHeaders.push("Length");
+  if (hasWidth) tableHeaders.push("Width");
+  if (hasHeight) tableHeaders.push("Height/Depth");
+  
   tableHeaders.push(
     "Qty",
     "Unit",
@@ -111,21 +120,18 @@ export const generateExcel = (
     
     subTotal += item.amount;
 
-    // Determine which dimension fields are irrelevant for the unit
-    const isSimple = ['nos', 'pcs', 'kg', 'ton', 'lsum', 'point', 'hours', 'days', '%', 'bag', 'box', 'pkt', 'ltr', 'visit', 'month', 'kw', 'hp', 'set', 'quintal'].includes(item.unit);
+    const isSimple = simpleUnits.includes(item.unit);
     const isLinear = ['rft', 'r.mt'].includes(item.unit);
+    const isVolumetric = heightUnits.includes(item.unit);
 
-    const row = [
-      index + 1,
-      item.floor || '',
-      item.description,
-      isSimple ? '-' : item.length,
-      (isSimple || isLinear) ? '-' : item.width
-    ];
-
-    if (hasHeight) {
-        row.push((['cu.ft', 'cu.mt', 'brass'].includes(item.unit)) ? (item.height || 0) : '-');
-    }
+    const row: any[] = [index + 1];
+    if (hasFloor) row.push(item.floor || '');
+    row.push(item.description);
+    
+    // Conditionally push dimensions
+    if (hasLength) row.push(isSimple ? '-' : item.length);
+    if (hasWidth) row.push((isSimple || isLinear) ? '-' : item.width);
+    if (hasHeight) row.push(isVolumetric ? (item.height || 0) : '-');
 
     row.push(
       quantity,
@@ -147,61 +153,80 @@ export const generateExcel = (
   const totalAdvance = payments.reduce((sum, p) => sum + p.amount, 0);
   const balanceDue = grandTotal - totalAdvance;
 
-  // Footer - adjust indentation based on columns
-  const padCols = hasHeight ? 8 : 7;
-  const padding = Array(padCols).fill("");
+  // Footer - Calculate padding based on visible columns
+  // Visible cols = SNo + (Floor?) + Desc + (L?) + (W?) + (H?) + Qty + Unit + TotQty + Rate + Amount
+  // We want the label to start at 'Rate' column index roughly, or 3 cols back from end
+  const totalCols = tableHeaders.length;
+  // Pad until the 'Total Qty' column
+  const padCols = totalCols - 5; // -5 accounts for Amount, Rate, TotalQty, Unit, Qty
+  const padding = Array(Math.max(0, padCols)).fill("");
 
   const footerData = [
     [],
-    [...padding, "Sub Total:", "", "", subTotal.toFixed(2)]
+    [...padding, "Sub Total:", "", "", "", subTotal.toFixed(2)]
+  ];
+
+  // Adjust padding for footer rows to align with Amount column (last column)
+  // We need the label to be in the column before amount, or earlier.
+  // Actually, standard practice: Label in one cell, Empty, Empty, Value in last.
+  // Let's refine:
+  // We want: [ ...padding, Label, val ] 
+  // If we utilize the last 2 columns for Label | Value, we need padding of (totalCols - 2)
+  
+  const footerPadding = Array(Math.max(0, totalCols - 2)).fill("");
+
+  // Re-define footer with precise alignment
+  const smartFooter = [
+      [],
+      [...footerPadding, "Sub Total:", subTotal.toFixed(2)]
   ];
 
   if (gstEnabled) {
-    footerData.push(
-      [...padding, `GST (${rate}%):`, "", "", gstAmount.toFixed(2)]
+    smartFooter.push(
+      [...footerPadding, `GST (${rate}%):`, gstAmount.toFixed(2)]
     );
   }
 
-  footerData.push(
-    [...padding, "Grand Total:", "", "", grandTotal.toFixed(2)]
+  smartFooter.push(
+    [...footerPadding, "Grand Total:", grandTotal.toFixed(2)]
   );
 
   if (payments.length > 0) {
     payments.forEach(payment => {
       const dateStr = payment.date ? `(${new Date(payment.date).toLocaleDateString()})` : '';
       const note = payment.notes ? `(${payment.notes})` : '';
-      const label = `Advance Received ${dateStr} ${note}:`;
+      const label = `Advance ${dateStr} ${note}:`;
       
-      footerData.push(
-        [...padding, label, "", "", `-${payment.amount.toFixed(2)}`]
+      smartFooter.push(
+        [...footerPadding, label, `-${payment.amount.toFixed(2)}`]
       );
     });
 
     if (payments.length > 1) {
-      footerData.push(
-        [...padding, "Total Advance:", "", "", `-${totalAdvance.toFixed(2)}`]
+      smartFooter.push(
+        [...footerPadding, "Total Advance:", `-${totalAdvance.toFixed(2)}`]
       );
     }
   }
 
-  footerData.push(
-    [...padding, "Balance Due:", "", "", balanceDue.toFixed(2)]
+  smartFooter.push(
+    [...footerPadding, "Balance Due:", balanceDue.toFixed(2)]
   );
 
   // Add Account Details
   if (contractor.bankDetails) {
      const bd = contractor.bankDetails;
      if (bd.holderName || bd.bankName || bd.accountNumber || bd.ifscCode || bd.upiId || bd.branchAddress) {
-        footerData.push([], ["Bank Account Details:"]);
-        if (bd.holderName) footerData.push(["Account Name:", bd.holderName]);
-        if (bd.bankName) footerData.push(["Bank Name:", bd.bankName]);
-        if (bd.accountNumber) footerData.push(["Account No:", bd.accountNumber]);
-        if (bd.ifscCode) footerData.push(["IFSC Code:", bd.ifscCode]);
-        if (bd.upiId) footerData.push(["UPI ID:", bd.upiId]);
-        if (bd.branchAddress) footerData.push(["Address:", bd.branchAddress]);
+        smartFooter.push([], ["Bank Account Details:"]);
+        if (bd.holderName) smartFooter.push(["Account Name:", bd.holderName]);
+        if (bd.bankName) smartFooter.push(["Bank Name:", bd.bankName]);
+        if (bd.accountNumber) smartFooter.push(["Account No:", bd.accountNumber]);
+        if (bd.ifscCode) smartFooter.push(["IFSC Code:", bd.ifscCode]);
+        if (bd.upiId) smartFooter.push(["UPI ID:", bd.upiId]);
+        if (bd.branchAddress) smartFooter.push(["Address:", bd.branchAddress]);
      }
   } else if (contractor.accountDetails && contractor.accountDetails.trim()) {
-    footerData.push(
+    smartFooter.push(
       [],
       ["Bank Account Details:"],
       [contractor.accountDetails]
@@ -209,7 +234,7 @@ export const generateExcel = (
   }
 
   if (disclaimer && disclaimer.trim()) {
-    footerData.push(
+    smartFooter.push(
       [],
       [],
       ["Terms & Conditions:"],
@@ -217,18 +242,19 @@ export const generateExcel = (
     );
   }
 
-  const wsData = [...headerData, tableHeaders, ...tableData, ...footerData];
+  const wsData = [...headerData, tableHeaders, ...tableData, ...smartFooter];
   const ws = XLSX.utils.aoa_to_sheet(wsData);
 
   // Column Widths
   const colWidths = [
-    { wch: 5 },  // S.No
-    { wch: 12 }, // Floor
-    { wch: 30 }, // Description
-    { wch: 10 }, // Length
-    { wch: 10 }, // Width
+    { wch: 6 },  // S.No
   ];
-  if (hasHeight) colWidths.push({ wch: 10 }); // Height
+  if(hasFloor) colWidths.push({ wch: 12 }); // Floor
+  colWidths.push({ wch: 30 }); // Description
+  if(hasLength) colWidths.push({ wch: 8 });
+  if(hasWidth) colWidths.push({ wch: 8 });
+  if(hasHeight) colWidths.push({ wch: 8 });
+  
   colWidths.push(
     { wch: 6 },  // Qty
     { wch: 8 },  // Unit
