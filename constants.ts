@@ -1,4 +1,5 @@
 
+
 export const APP_TEXT = {
   appTitle: "Contractor Bill Master",
   contractorDetails: "Contractor / Business Details",
@@ -197,6 +198,133 @@ export const CONSTRUCTION_UNITS = [
   // Other
   { value: "lsum", label: "Lump Sum" },
   { value: "%", label: "% Cost" }
+];
+
+// Database of standard construction items for Auto-Suggest
+export const AUTO_SUGGEST_ITEMS = [
+  // --- CIVIL & STRUCTURE ---
+  "Excavation Work (Earthwork)",
+  "PCC Work (Plain Cement Concrete)",
+  "RCC Work M20 Grade",
+  "RCC Work M25 Grade",
+  "Brickwork 9 inch (Red Brick)",
+  "Brickwork 4 inch (Red Brick)",
+  "Block Work (AAC Blocks)",
+  "Fly Ash Brick Work",
+  "Plastering Work (Internal 12mm)",
+  "Plastering Work (External 20mm)",
+  "Ceiling Plastering",
+  "Waterproofing (Bathroom/Toilet)",
+  "Waterproofing (Terrace)",
+  "Waterproofing (Basement)",
+  "Anti-Termite Treatment",
+  "Sand Filling (River Sand)",
+  "Aggregates Filling",
+  "Soling Work (Rubble)",
+  "Shuttering Work (Centering)",
+  "Steel Reinforcement (Rebar Tying)",
+  
+  // --- POP & FALSE CEILING ---
+  "POP False Ceiling (Plain)",
+  "POP False Ceiling (Designer/Cove)",
+  "Gypsum False Ceiling (Saint Gobain)",
+  "Grid Ceiling (2x2 Tile)",
+  "POP Punning on Walls (Smooth Finish)",
+  "POP Cornice Running Fit",
+  "POP Moulding / Beading",
+  "PVC False Ceiling",
+  "Wooden False Ceiling",
+  "Baffle Ceiling (Acoustic)",
+  
+  // --- FLOORING & TILING ---
+  "Vitrified Tile Flooring (2x2)",
+  "Vitrified Tile Flooring (4x2)",
+  "Ceramic Wall Tiles (Bathroom)",
+  "Granite Flooring",
+  "Granite Door Frame / Choukhat",
+  "Marble Flooring (Italian)",
+  "Kota Stone Flooring",
+  "Wooden Flooring (Laminate)",
+  "Vinyl Flooring",
+  "Carpet Flooring",
+  "Skirting Fixing (Running ft)",
+  "Tile Grouting & Epoxy",
+  "Kitchen Platform Granite Fixing",
+  
+  // --- PAINTING & POLISHING ---
+  "Wall Putty Application (2 Coats)",
+  "Primer Application (1 Coat)",
+  "Plastic Emulsion Paint (Royal)",
+  "Distemper Paint",
+  "Enamel Paint on Doors/Grills",
+  "Texture Paint",
+  "External Apex Paint",
+  "Waterproof Cement Paint",
+  "Melamine Polish (Wood)",
+  "PU Polish (Wood)",
+  "Duco Paint Finish",
+  
+  // --- ELECTRICAL ---
+  "Point Wiring (Light/Fan)",
+  "Power Point Wiring (6A/16A)",
+  "AC Point Wiring",
+  "Geyser Point Wiring",
+  "Sub-Main Wiring",
+  "Switch Socket Installation",
+  "DB Installation & Dressing (MCB Box)",
+  "Light Fixture Fixing",
+  "Fan Fixing",
+  "Chandelier Installation",
+  "Earthing Work",
+  "Conduit Pipe Laying (Slab/Wall)",
+  "Profile Light Installation",
+  "CCTV Camera Installation",
+  "Inverter/Battery Installation",
+  
+  // --- PLUMBING ---
+  "CPVC Pipe Laying (Water Supply)",
+  "PVC Pipe Laying (Drainage)",
+  "Core Cutting (4 inch / 6 inch)",
+  "EWC Installation (Wall Hung)",
+  "Wash Basin Fixing",
+  "Diverter / Mixer Installation",
+  "Water Tank Installation",
+  "Motor/Pump Installation",
+  "Rain Water Harvesting System",
+  "Bathroom Fittings (Taps, Showers)",
+  
+  // --- FABRICATION ---
+  "MS Gate Fabrication",
+  "SS Railing (Staircase)",
+  "MS Safety Grill (Windows)",
+  "MS Staircase Fabrication",
+  "Shed Fabrication (Roofing)",
+  "Collapsible Gate",
+  "Aluminium Window (Sliding)",
+  "UPVC Window Installation",
+  "Toughened Glass Partition",
+  "ACP Sheet Cladding",
+  
+  // --- CARPENTRY & INTERIOR ---
+  "Door Frame Fixing (Wood)",
+  "Flush Door Installation",
+  "Laminate Pasting Work",
+  "Modular Kitchen Cabinets",
+  "Wardrobe Making (Ply + Laminate)",
+  "TV Unit Making",
+  "Study Table Making",
+  "Gypsum Partition Wall",
+  "Wooden Paneling on Wall",
+  "Hardware Fixing (Locks, Handles)",
+  
+  // --- CONSULTANT / PROFESSIONAL ---
+  "Site Visit Charges",
+  "Architectural Drawing Charges",
+  "Structural Design Charges",
+  "Project Management Consultancy",
+  "Labor Charges (Daily)",
+  "Supervisor Charges (Monthly)",
+  "Layout Marking Charges"
 ];
 
 export const SUBSCRIPTION_PLANS = [

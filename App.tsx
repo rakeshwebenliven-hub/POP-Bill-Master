@@ -1,8 +1,9 @@
 
+
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, LayoutList, Contact } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile } from './types';
-import { APP_TEXT, SUBSCRIPTION_PLANS, CONSTRUCTION_UNITS } from './constants';
+import { APP_TEXT, SUBSCRIPTION_PLANS, CONSTRUCTION_UNITS, AUTO_SUGGEST_ITEMS } from './constants';
 import { generateExcel } from './services/excelService';
 import { generatePDF } from './services/pdfService';
 import { saveDraft, loadDraft, saveToHistory, getHistory, deleteFromHistory, saveProfile, getProfiles, deleteProfile, updateBillStatus, getTrash, restoreFromTrash, permanentDelete } from './services/storageService';
@@ -190,6 +191,10 @@ const App: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  
+  // Auto Suggest State
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const [currentItem, setCurrentItem] = useState<Partial<BillItem>>({
     description: '',
@@ -474,6 +479,25 @@ const App: React.FC = () => {
       floor: parsed.floor || prev.floor
     }));
     setIsVoiceModalOpen(false);
+  };
+
+  const handleDescriptionChange = (text: string) => {
+      setCurrentItem({ ...currentItem, description: text });
+      
+      if (text.trim().length > 1) {
+          const filtered = AUTO_SUGGEST_ITEMS.filter(item => 
+              item.toLowerCase().includes(text.toLowerCase())
+          ).slice(0, 6); // Limit to top 6 suggestions
+          setSuggestions(filtered);
+          setShowSuggestions(filtered.length > 0);
+      } else {
+          setShowSuggestions(false);
+      }
+  };
+
+  const handleSelectSuggestion = (text: string) => {
+      setCurrentItem({ ...currentItem, description: text });
+      setShowSuggestions(false);
   };
 
   const handleAddPayment = () => {
@@ -1081,9 +1105,36 @@ const App: React.FC = () => {
                   </select>
                 </div>
 
-                <div className={`col-span-2 ${isSimpleUnit ? 'sm:col-span-3' : 'sm:col-span-4'}`}>
+                <div className={`col-span-2 ${isSimpleUnit ? 'sm:col-span-3' : 'sm:col-span-4'} relative z-20`}>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 ml-1">{t.description}</label>
-                  <input type="text" placeholder="Description" className="input-field text-sm" value={currentItem.description} onChange={e => setCurrentItem({...currentItem, description: e.target.value})} />
+                  <div className="relative">
+                      <input 
+                        type="text" 
+                        placeholder="Description" 
+                        className="input-field text-sm w-full" 
+                        value={currentItem.description} 
+                        onChange={e => handleDescriptionChange(e.target.value)}
+                        onFocus={() => {
+                            if (currentItem.description && currentItem.description.length > 1) {
+                                setShowSuggestions(true);
+                            }
+                        }}
+                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                      />
+                      {showSuggestions && suggestions.length > 0 && (
+                          <ul className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-48 overflow-y-auto z-50">
+                              {suggestions.map((s, i) => (
+                                  <li 
+                                    key={i} 
+                                    onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(s); }}
+                                    className="px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 cursor-pointer border-b border-slate-100 dark:border-slate-700/50 last:border-0"
+                                  >
+                                      {s}
+                                  </li>
+                              ))}
+                          </ul>
+                      )}
+                  </div>
                 </div>
                 
                 {!isSimpleUnit && (
@@ -1133,7 +1184,7 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-3 pt-2 relative z-10">
                  {editingId && (
                    <button onClick={handleCancelEdit} className="flex-1 py-3 rounded-xl font-bold border-2 border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition text-sm">{t.cancelEdit}</button>
                  )}
