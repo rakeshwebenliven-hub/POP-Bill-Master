@@ -44,23 +44,11 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             setError(null); 
         };
         
-        recognitionRef.current.onresult = (event: any) => {
-          // Only process the current phrase
-          let currentPhrase = '';
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-             if (event.results[i].isFinal) {
-                currentPhrase += event.results[i][0].transcript;
-             }
-          }
-        };
-        
-        // Better handling for non-continuous mode
         recognitionRef.current.onend = () => {
              setIsListening(false);
         };
         
         // Capture final result specifically
-        // We override the onresult to be simpler for non-continuous mode
         recognitionRef.current.onresult = (event: any) => {
              const result = event.results[0][0].transcript;
              if (event.results[0].isFinal) {
@@ -81,7 +69,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
              setIsListening(false);
           } else {
              setIsListening(false);
-             // Don't show generic errors to keep UI clean unless critical
           }
         };
 
@@ -117,7 +104,8 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     }
   }, [transcript, targetUnit, targetFloor, customFloor]);
 
-  const toggleListening = () => {
+  const toggleListening = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent modal close
     if (error === t.speechNotSupported) return;
     
     if (isListening) {
@@ -126,7 +114,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
       try { 
           recognitionRef.current?.start(); 
       } catch (e) { 
-          // If already started, ignore
           console.error(e);
       }
     }
@@ -157,7 +144,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     let length = 0, width = 0, height = 0, quantity = 1, rate = 0, floor = manualFloor;
     let detectedUnit = currentUnitMode;
 
-    // Detect Floor
+    // Detect Floor (only if not manually set)
     if (!floor) {
         if (processingText.match(/\b(ground|gf)\b/)) floor = 'Ground Floor';
         else if (processingText.match(/\b(first|1st|ff)\b/)) floor = '1st Floor';
@@ -167,26 +154,22 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         else if (processingText.match(/\b(fifth|5th)\b/)) floor = '5th Floor';
     }
 
-    // Keyword detection only happens if we are in 'Auto' mode or similar, 
-    // BUT we prioritize the `currentUnitMode` passed in.
+    // Keyword detection
     if (processingText.match(/\b(sq\.?ft|square\s*feet)\b/)) detectedUnit = 'sq.ft';
     else if (processingText.match(/\b(cu\.?ft|cubic\s*feet)\b/)) detectedUnit = 'cu.ft';
     else if (processingText.match(/\b(r\.?ft|running\s*feet)\b/)) detectedUnit = 'rft';
     else if (processingText.match(/\b(brass)\b/)) detectedUnit = 'brass';
     else if (processingText.match(/\b(pcs|pieces|nos|numbers|bags|boxes|pkts|points|sets)\b/)) detectedUnit = 'nos';
 
+    // If no unit keyword found, STICK TO DROPDOWN SELECTION
     if (!processingText.match(/\b(sq\.?ft|cu\.?ft|r\.?ft|brass|pcs|nos)\b/)) {
         detectedUnit = currentUnitMode;
     }
 
     // 2. EXTRACT & REMOVE RATE FIRST
-    // Standard Regex (No Lookbehind) for max compatibility
     const ratePatterns = [
-        // rate 50, price 50, @ 50, rate of 50
         /\b(?:rate|price|@|bhav|ret|cost|at|of)\s*[:\-\s]*(\d+(?:\.\d+)?)/i, 
-        // rs 50, inr 50
         /\b(?:rs|rupees?|inr)\.?\s*(\d+(?:\.\d+)?)/i,
-        // 50 rs, 50 rupees
         /\b(\d+(?:\.\d+)?)\s*(?:rs|rupees?|inr)\b/i
     ];
 
@@ -200,7 +183,6 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     }
 
     // 3. UNIT SPECIFIC PARSING
-    // Re-scan numbers after rate removal
     const numbers = (processingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
     
     const isVolumetric = ['cu.ft', 'cu.mt', 'brass'].includes(detectedUnit);
@@ -216,6 +198,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
         if (qtyMatch) {
             quantity = parseFloat(qtyMatch[1]);
             if (rate === 0) {
+                 // Try finding implicit rate after quantity
                  const remainingText = processingText.replace(qtyMatch[0], ' ');
                  const remNumbers = (remainingText.match(/(\d+(?:\.\d+)?)/g) || []).map(Number);
                  if (remNumbers.length > 0) rate = remNumbers[0];
@@ -256,6 +239,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
                 else if (isArea) [length, width] = numbers;
                 else if (isLinear) length = numbers[0];
             } else if (numbers.length > requiredDims) {
+                // Assume last number is rate
                 rate = numbers[numbers.length - 1];
                 const dimNumbers = numbers.slice(0, numbers.length - 1);
                 
@@ -306,9 +290,9 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="absolute inset-0" onClick={onClose}></div>
 
-      {/* Added onClick stopPropagation to prevent modal close when clicking inside */}
+      {/* Added relative z-10 and onClick stopPropagation to fix 'popup exit' issue */}
       <div 
-        className="bg-white dark:bg-slate-900 w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden border-t border-slate-200 dark:border-slate-800 sm:border transition-all animate-slide-up safe-area-bottom"
+        className="bg-white dark:bg-slate-900 w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden border-t border-slate-200 dark:border-slate-800 sm:border transition-all animate-slide-up safe-area-bottom relative z-10"
         onClick={(e) => e.stopPropagation()}
       >
         
@@ -323,7 +307,7 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
             </div>
             <h3 className="font-bold text-lg text-slate-800 dark:text-white">{t.voiceEntry}</h3>
           </div>
-          <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+          <button type="button" onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition">
             <X className="w-5 h-5 text-slate-500" />
           </button>
         </div>
@@ -357,12 +341,12 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
 
              {targetFloor === 'custom' && (
                 <div className="col-span-2">
-                   <input type="text" placeholder="e.g. Mezzanine" value={customFloor} onChange={(e) => setCustomFloor(e.target.value)} className="w-full p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white animate-in slide-in-from-top-2 duration-200" autoFocus />
+                   <input type="text" placeholder="e.g. Mezzanine" value={customFloor} onChange={(e) => setCustomFloor(e.target.value)} className="w-full p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white animate-in slide-in-from-top-2 duration-200" />
                 </div>
              )}
           </div>
           
-          <button onClick={toggleListening} className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 shadow-xl mb-4 ${isListening ? 'bg-red-500 scale-110 ring-4 ring-red-200 dark:ring-red-900/50' : 'bg-gradient-to-br from-indigo-500 to-indigo-700 hover:to-indigo-600'} ${error === t.speechNotSupported ? 'opacity-50 cursor-not-allowed bg-slate-400' : ''}`} disabled={error === t.speechNotSupported}>
+          <button type="button" onClick={toggleListening} className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 shadow-xl mb-4 ${isListening ? 'bg-red-500 scale-110 ring-4 ring-red-200 dark:ring-red-900/50' : 'bg-gradient-to-br from-indigo-500 to-indigo-700 hover:to-indigo-600'} ${error === t.speechNotSupported ? 'opacity-50 cursor-not-allowed bg-slate-400' : ''}`} disabled={error === t.speechNotSupported}>
             {isListening ? <span className="animate-pulse text-white"><Mic className="w-8 h-8" /></span> : <Mic className="w-8 h-8 text-white" />}
           </button>
 
@@ -413,8 +397,8 @@ const VoiceEntryModal: React.FC<VoiceEntryModalProps> = ({ isOpen, onClose, onCo
           )}
 
           <div className="flex w-full gap-3">
-            <button onClick={onClose} className="flex-1 py-3 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition">{t.cancel}</button>
-            <button onClick={() => parsedItem && onConfirm(parsedItem)} disabled={!parsedItem} className="flex-1 py-3 px-4 rounded-xl bg-indigo-600 dark:bg-indigo-700 text-white font-bold hover:bg-indigo-700 dark:hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 dark:shadow-none"><Check className="w-4 h-4" /> Confirm</button>
+            <button type="button" onClick={onClose} className="flex-1 py-3 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition">{t.cancel}</button>
+            <button type="button" onClick={() => parsedItem && onConfirm(parsedItem)} disabled={!parsedItem} className="flex-1 py-3 px-4 rounded-xl bg-indigo-600 dark:bg-indigo-700 text-white font-bold hover:bg-indigo-700 dark:hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 dark:shadow-none"><Check className="w-4 h-4" /> Confirm</button>
           </div>
         </div>
       </div>
