@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
-import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, LayoutList, Contact, FileCheck } from 'lucide-react';
-import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile, ClientProfile, DocumentType, EstimateStatus } from './types';
+import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, LayoutList, Contact, FileCheck, Wallet, PieChart } from 'lucide-react';
+import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile, ClientProfile, DocumentType, EstimateStatus, ExpenseRecord } from './types';
 import { APP_TEXT, SUBSCRIPTION_PLANS, CONSTRUCTION_UNITS, AUTO_SUGGEST_ITEMS } from './constants';
 import { generateExcel } from './services/excelService';
 import { generatePDF } from './services/pdfService';
@@ -17,6 +17,8 @@ const OnboardingFlow = lazy(() => import('./components/OnboardingFlow'));
 const SubscriptionPlans = lazy(() => import('./components/SubscriptionPlans'));
 const ShareModal = lazy(() => import('./components/ShareModal'));
 const ProfileModal = lazy(() => import('./components/ProfileModal'));
+const ExpensesModal = lazy(() => import('./components/ExpensesModal'));
+const DashboardModal = lazy(() => import('./components/DashboardModal'));
 
 interface SwipeableItemProps {
   item: BillItem;
@@ -187,6 +189,8 @@ const App: React.FC = () => {
   const [disclaimer, setDisclaimer] = useState<string>('');
   
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+  
   const [newPaymentAmount, setNewPaymentAmount] = useState('');
   const [newPaymentDate, setNewPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [newPaymentNote, setNewPaymentNote] = useState('');
@@ -216,6 +220,9 @@ const App: React.FC = () => {
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isExpensesModalOpen, setIsExpensesModalOpen] = useState(false);
+  const [isDashboardModalOpen, setIsDashboardModalOpen] = useState(false);
+  
   const [activeTab, setActiveTab] = useState<'details' | 'items'>('details');
   const [historyItems, setHistoryItems] = useState<SavedBillData[]>([]);
   const [trashItems, setTrashItems] = useState<SavedBillData[]>([]);
@@ -276,6 +283,7 @@ const App: React.FC = () => {
       setBillDate(draft.billDate || new Date().toISOString().split('T')[0]);
       setPaymentStatus(draft.paymentStatus || 'Pending');
       setDisclaimer(draft.disclaimer || '');
+      setExpenses(draft.expenses || []);
       
       if (draft.payments && draft.payments.length > 0) {
         setPayments(draft.payments);
@@ -331,6 +339,7 @@ const App: React.FC = () => {
         gstRate,
         advanceAmount: '', 
         payments,
+        expenses,
         disclaimer
       };
       saveDraft(billData);
@@ -340,7 +349,7 @@ const App: React.FC = () => {
          saveToHistory(billData);
       }
     }
-  }, [items, client, contractor, gstEnabled, gstRate, billNumber, billDate, paymentStatus, payments, disclaimer, user, documentType, estimateStatus]);
+  }, [items, client, contractor, gstEnabled, gstRate, billNumber, billDate, paymentStatus, payments, expenses, disclaimer, user, documentType, estimateStatus]);
 
   const toggleTheme = () => {
     const newTheme = !isDarkMode ? 'dark' : 'light';
@@ -558,6 +567,15 @@ const App: React.FC = () => {
      setPayments(prev => prev.filter(p => p.id !== id));
   };
 
+  const handleAddExpense = (exp: ExpenseRecord) => {
+     setExpenses(prev => [...prev, exp]);
+     showToast("Expense added");
+  };
+
+  const handleDeleteExpense = (id: string) => {
+     setExpenses(prev => prev.filter(e => e.id !== id));
+  };
+
   const totals = useMemo(() => {
     const subTotal = items.reduce((acc, item) => acc + item.amount, 0);
     const totalQty = items.reduce((acc, item) => {
@@ -586,6 +604,7 @@ const App: React.FC = () => {
       gstRate,
       advanceAmount: '', 
       payments,
+      expenses,
       disclaimer
     });
     setHistoryItems(getHistory());
@@ -599,6 +618,7 @@ const App: React.FC = () => {
      setClient({ name: '', phone: '', address: '' });
      setItems([]);
      setPayments([]);
+     setExpenses([]);
      setBillNumber(generateNextBillNumber(historyItems, documentType));
      setBillDate(new Date().toISOString().split('T')[0]);
      setPaymentStatus('Pending');
@@ -623,6 +643,8 @@ const App: React.FC = () => {
     setGstEnabled(bill.gstEnabled);
     setGstRate(bill.gstRate || 18);
     setDisclaimer(bill.disclaimer || '');
+    setExpenses(bill.expenses || []);
+    
     if (bill.payments && bill.payments.length > 0) {
        setPayments(bill.payments);
     } else if (bill.advanceAmount) {
@@ -689,13 +711,13 @@ const App: React.FC = () => {
           billNumber: newBillNumber,
           paymentStatus: 'Pending',
           estimateStatus: undefined,
-          convertedToBillId: undefined // New invoice shouldn't link to anything yet
+          convertedToBillId: undefined, // New invoice shouldn't link to anything yet
+          expenses: [] // Do not carry over expenses from Estimate to Invoice typically, or maybe yes? Let's reset for fresh tracking.
       };
 
       saveToHistory(newInvoice);
       setHistoryItems(getHistory());
       
-      // Optionally update the original estimate to link to this invoice (not implemented deep linking yet, but useful for logic)
       showToast("Converted to Invoice successfully!");
       
       // Load the new invoice
@@ -1023,6 +1045,9 @@ const App: React.FC = () => {
               )}
             </h1>
             <div className="flex items-center gap-1.5">
+              <button onClick={() => setIsDashboardModalOpen(true)} className="p-2 rounded-full hover:bg-white/10 transition active:scale-95" title="Dashboard">
+                <PieChart className="w-5 h-5 text-white" />
+              </button>
               <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-white/10 transition active:scale-95">
                 {isDarkMode ? <Sun className="w-5 h-5 text-amber-300" /> : <Moon className="w-5 h-5 text-indigo-100" />}
               </button>
@@ -1272,6 +1297,10 @@ const App: React.FC = () => {
               <div className="flex justify-between items-center mb-5">
                 <h2 className="text-lg font-bold flex items-center gap-2">{editingId ? t.updateItem : t.addItem}</h2>
                 <div className="flex gap-2">
+                  <button onClick={() => setIsExpensesModalOpen(true)} className="p-2.5 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-xl hover:bg-green-100 dark:hover:bg-green-900/50 transition flex items-center gap-2 active:scale-95 border border-green-100 dark:border-green-900">
+                     <Wallet className="w-5 h-5" />
+                     <span className="text-xs font-bold hidden sm:inline">Expenses</span>
+                  </button>
                   <button onClick={() => setIsVoiceModalOpen(true)} className="p-2.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition flex items-center gap-2 group active:scale-95 border border-indigo-100 dark:border-indigo-900">
                      <Mic className="w-5 h-5 group-hover:scale-110 transition-transform" />
                      <span className="text-xs font-bold hidden sm:inline">{t.voiceEntry}</span>
@@ -1548,6 +1577,19 @@ const App: React.FC = () => {
             onRestore={handleCloudRestore}
             onUpgrade={() => { setIsProfileModalOpen(false); setShowSubscription(true); }}
             isSyncing={isSyncing}
+         />}
+         {isExpensesModalOpen && <ExpensesModal 
+            isOpen={isExpensesModalOpen}
+            onClose={() => setIsExpensesModalOpen(false)}
+            expenses={expenses}
+            onAddExpense={handleAddExpense}
+            onDeleteExpense={handleDeleteExpense}
+            billTotal={totals.grandTotal}
+         />}
+         {isDashboardModalOpen && <DashboardModal 
+            isOpen={isDashboardModalOpen}
+            onClose={() => setIsDashboardModalOpen(false)}
+            history={historyItems}
          />}
       </Suspense>
     </div>

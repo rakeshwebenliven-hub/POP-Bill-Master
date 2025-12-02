@@ -172,6 +172,22 @@ export const APP_TEXT = {
   modeEstimate: "Estimate / Quote"
 };
 
+export const DASHBOARD_TEXT = {
+  title: "Dashboard & Analytics",
+  totalRevenue: "Total Revenue",
+  totalExpenses: "Total Expenses",
+  netProfit: "Net Profit",
+  profitMargin: "Profit Margin",
+  outstanding: "Outstanding Due",
+  monthlyTrend: "Monthly Trend",
+  topClients: "Top Clients (By Profit)",
+  recentActivity: "Recent Activity",
+  addExpense: "Add Expense",
+  expenseHistory: "Expenses for this Bill",
+  noExpenses: "No expenses recorded yet.",
+  profitOnBill: "Profit on this Bill"
+};
+
 // Comprehensive list of units for all trades
 export const CONSTRUCTION_UNITS = [
   // Area
@@ -216,6 +232,17 @@ export const CONSTRUCTION_UNITS = [
   // Other
   { value: "lsum", label: "Lump Sum" },
   { value: "%", label: "% Cost" }
+];
+
+export const EXPENSE_CATEGORIES = [
+  "Material",
+  "Labor",
+  "Transport",
+  "Food/Tea",
+  "Equipment Rent",
+  "Fuel",
+  "Sub-contractor",
+  "Other"
 ];
 
 // Database of standard construction items for Auto-Suggest

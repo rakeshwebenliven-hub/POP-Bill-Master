@@ -88,6 +88,14 @@ export interface PaymentRecord {
   notes: string;
 }
 
+export interface ExpenseRecord {
+  id: string;
+  category: string;
+  description: string;
+  amount: number;
+  date: string;
+}
+
 export interface SavedBillData {
   id: string;
   timestamp: number;
@@ -104,6 +112,7 @@ export interface SavedBillData {
   gstRate?: number;
   advanceAmount: string; 
   payments: PaymentRecord[];
+  expenses?: ExpenseRecord[]; // Track costs for this bill
   disclaimer: string;
 }
 

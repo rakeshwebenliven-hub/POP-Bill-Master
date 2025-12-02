@@ -49,6 +49,8 @@ export const saveToHistory = (data: Omit<SavedBillData, 'id' | 'timestamp'>): Sa
     const updatedBill: SavedBillData = {
       ...existingBill,
       ...data,
+      // Keep expenses if not provided in update (though App typically passes full state)
+      expenses: data.expenses || existingBill.expenses || [],
       // Keep original ID, but update timestamp to reflect modification
       timestamp: Date.now()
     };
@@ -66,6 +68,7 @@ export const saveToHistory = (data: Omit<SavedBillData, 'id' | 'timestamp'>): Sa
     // Create new bill
     const newBill: SavedBillData = {
       ...data,
+      expenses: data.expenses || [],
       id: Date.now().toString(),
       timestamp: Date.now()
     };
