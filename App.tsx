@@ -397,6 +397,23 @@ const App: React.FC = () => {
     return totalQty * r;
   };
 
+  const validateAndSwitchToItems = () => {
+      // Validate Contractor Details (Either Name or Company Name required)
+      if (!contractor.companyName?.trim() && !contractor.name?.trim()) {
+          showToast("Please fill Contractor / Business Details", 'error');
+          return;
+      }
+      
+      // Validate Client Details
+      if (!client.name?.trim()) {
+          showToast("Please fill Client Name", 'error');
+          return;
+      }
+
+      setActiveTab('items');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleAddItem = () => {
     if (!currentItem.description || !currentItem.rate) return;
     const len = Number(currentItem.length) || 0;
@@ -970,7 +987,7 @@ const App: React.FC = () => {
                <span className="hidden sm:inline">Contractor/Business & Client Details</span>
                <span className="sm:hidden">Details</span>
              </button>
-             <button onClick={() => setActiveTab('items')} className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5 ${activeTab === 'items' ? 'bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 shadow-md transform scale-[1.01]' : 'text-indigo-200 hover:bg-white/5'}`}>
+             <button onClick={() => validateAndSwitchToItems()} className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5 ${activeTab === 'items' ? 'bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 shadow-md transform scale-[1.01]' : 'text-indigo-200 hover:bg-white/5'}`}>
                <LayoutList className="w-4 h-4 sm:hidden" />
                <span className="hidden sm:inline">{t.addItem}</span>
                <span className="sm:hidden">Items</span>
@@ -1148,7 +1165,7 @@ const App: React.FC = () => {
             </div>
             
             <div className="flex justify-end pt-4">
-               <button onClick={() => { setActiveTab('items'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="btn-primary py-3 px-6 flex items-center gap-2 text-base font-bold">Next: Add Items <ChevronRight className="w-4 h-4" /></button>
+               <button onClick={validateAndSwitchToItems} className="btn-primary py-3 px-6 flex items-center gap-2 text-base font-bold">Next: Add Items <ChevronRight className="w-4 h-4" /></button>
             </div>
           </div>
         )}
