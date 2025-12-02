@@ -630,7 +630,8 @@ const App: React.FC = () => {
 
   const handleSaveProfile = () => {
      const newProfile = saveProfile(contractor);
-     setProfiles(prev => [...prev, newProfile]);
+     // Reload profiles from storage to handle updates correctly
+     setProfiles(getProfiles());
      setSelectedProfileId(newProfile.id);
      showToast(t.profileSaved);
   };
@@ -670,7 +671,8 @@ const App: React.FC = () => {
        return;
      }
      const newProfile = saveClientProfile(client);
-     setClientProfiles(prev => [...prev, newProfile]);
+     // Reload client profiles from storage to handle updates correctly
+     setClientProfiles(getClientProfiles());
      setSelectedClientId(newProfile.id);
      showToast(t.clientSaved);
   };

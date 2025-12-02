@@ -137,9 +137,29 @@ export const updateBillStatus = (id: string, status: PaymentStatus) => {
 
 export const saveProfile = (details: ContractorDetails, name?: string): ContractorProfile => {
   const profiles = getProfiles();
+  
+  // Check if profile exists by Company Name or Name
+  const targetName = name || details.companyName || details.name;
+  const existingIndex = profiles.findIndex(p => 
+    p.name.trim().toLowerCase() === targetName?.trim().toLowerCase()
+  );
+
+  if (existingIndex >= 0) {
+    // Update existing
+    const existingProfile = profiles[existingIndex];
+    const updatedProfile = {
+      ...existingProfile,
+      details: details
+    };
+    profiles[existingIndex] = updatedProfile;
+    localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+    return updatedProfile;
+  }
+
+  // Create new
   const newProfile: ContractorProfile = {
     id: Date.now().toString(),
-    name: name || details.companyName || details.name || 'New Profile',
+    name: targetName || 'New Profile',
     details
   };
   
@@ -159,10 +179,30 @@ export const deleteProfile = (id: string) => {
   localStorage.setItem(PROFILES_KEY, JSON.stringify(updated));
 };
 
-// --- Client Profiles (New) ---
+// --- Client Profiles (Prevent Duplicates) ---
 
 export const saveClientProfile = (details: ClientDetails): ClientProfile => {
   const profiles = getClientProfiles();
+  
+  // Check if a client with this name already exists
+  const existingIndex = profiles.findIndex(p => 
+    p.details.name.trim().toLowerCase() === details.name.trim().toLowerCase()
+  );
+
+  if (existingIndex >= 0) {
+    // Update existing profile with new details
+    const existingProfile = profiles[existingIndex];
+    const updatedProfile = {
+      ...existingProfile,
+      details: details // Overwrite with new phone/address
+    };
+    
+    profiles[existingIndex] = updatedProfile;
+    localStorage.setItem(CLIENT_PROFILES_KEY, JSON.stringify(profiles));
+    return updatedProfile;
+  }
+
+  // Create new if not found
   const newProfile: ClientProfile = {
     id: Date.now().toString(),
     name: details.name || 'New Client',
