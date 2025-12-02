@@ -1,5 +1,6 @@
+
 import { BackupData, SavedBillData, ContractorProfile, UserProfile } from '../types';
-import { getHistory, getProfiles, loadDraft } from './storageService';
+import { getHistory, getProfiles, loadDraft, getClientProfiles } from './storageService';
 import { getCurrentUser } from './authService';
 
 declare global {
@@ -90,6 +91,7 @@ const gatherLocalData = (): BackupData => {
     user: getCurrentUser(),
     history: getHistory(),
     profiles: getProfiles(),
+    clientProfiles: getClientProfiles(),
     draft: loadDraft(),
     lastBackupTime: Date.now()
   };
@@ -193,6 +195,7 @@ export const restoreFromDrive = async (): Promise<boolean> => {
     if (backup.user) localStorage.setItem('pop_user_profile', JSON.stringify(backup.user));
     if (backup.history) localStorage.setItem('pop_bill_history', JSON.stringify(backup.history));
     if (backup.profiles) localStorage.setItem('pop_contractor_profiles', JSON.stringify(backup.profiles));
+    if (backup.clientProfiles) localStorage.setItem('pop_client_profiles', JSON.stringify(backup.clientProfiles));
     if (backup.draft) localStorage.setItem('pop_bill_draft', JSON.stringify(backup.draft));
     
     return true;

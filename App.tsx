@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, LayoutList, Contact } from 'lucide-react';
-import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile } from './types';
+import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile, ClientProfile } from './types';
 import { APP_TEXT, SUBSCRIPTION_PLANS, CONSTRUCTION_UNITS, AUTO_SUGGEST_ITEMS } from './constants';
 import { generateExcel } from './services/excelService';
 import { generatePDF } from './services/pdfService';
-import { saveDraft, loadDraft, saveToHistory, getHistory, deleteFromHistory, saveProfile, getProfiles, deleteProfile, updateBillStatus, getTrash, restoreFromTrash, permanentDelete } from './services/storageService';
+import { saveDraft, loadDraft, saveToHistory, getHistory, deleteFromHistory, saveProfile, getProfiles, deleteProfile, updateBillStatus, getTrash, restoreFromTrash, permanentDelete, saveClientProfile, getClientProfiles, deleteClientProfile } from './services/storageService';
 import { getCurrentUser, checkSubscriptionAccess, logoutUser } from './services/authService';
 import { initGoogleDrive, backupToDrive, restoreFromDrive } from './services/googleDriveService';
 
@@ -168,7 +168,9 @@ const App: React.FC = () => {
   });
 
   const [profiles, setProfiles] = useState<ContractorProfile[]>([]);
+  const [clientProfiles, setClientProfiles] = useState<ClientProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState('');
+  const [selectedClientId, setSelectedClientId] = useState('');
   
   const [client, setClient] = useState<ClientDetails>({
     name: '',
@@ -246,6 +248,7 @@ const App: React.FC = () => {
     if (!user) return; 
     setAccess(checkSubscriptionAccess());
     setProfiles(getProfiles());
+    setClientProfiles(getClientProfiles());
     const draft = loadDraft();
     const history = getHistory();
     setHistoryItems(history);
@@ -649,6 +652,35 @@ const App: React.FC = () => {
      }
   };
 
+  // --- Client Profile Handlers ---
+  const handleSaveClientProfile = () => {
+     if (!client.name) {
+       showToast("Client name is required", 'error');
+       return;
+     }
+     const newProfile = saveClientProfile(client);
+     setClientProfiles(prev => [...prev, newProfile]);
+     setSelectedClientId(newProfile.id);
+     showToast(t.clientSaved);
+  };
+
+  const handleLoadClientProfile = (id: string) => {
+     const profile = clientProfiles.find(p => p.id === id);
+     if (profile) {
+        setClient(profile.details);
+        setSelectedClientId(id);
+        showToast("Client loaded");
+     }
+  };
+
+  const handleDeleteClientProfile = (id: string) => {
+     if(window.confirm(t.confirmDelete)) {
+        deleteClientProfile(id);
+        setClientProfiles(prev => prev.filter(p => p.id !== id));
+        if (selectedClientId === id) setSelectedClientId('');
+     }
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'logo' | 'upiQrCode') => {
     const file = e.target.files?.[0];
     if (file) {
@@ -1037,9 +1069,28 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Client Form */}
+            {/* Client Form - UPDATED WITH SAVED PROFILES */}
             <div className="card p-4 sm:p-6 space-y-4">
-              <h2 className="text-lg font-bold border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2"><div className="bg-indigo-100 dark:bg-indigo-900/30 p-1.5 rounded-lg"><Users className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /></div> {t.clientDetails}</h2>
+              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                 <h2 className="text-lg font-bold flex items-center gap-2">
+                   <div className="bg-indigo-100 dark:bg-indigo-900/30 p-1.5 rounded-lg"><Users className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /></div> {t.clientDetails}
+                 </h2>
+                 {/* Saved Client Profiles Dropdown */}
+                 <div className="flex gap-2 items-center">
+                    <select 
+                       className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm rounded-lg p-1.5 outline-none max-w-[120px] sm:max-w-[180px] dark:text-white"
+                       value={selectedClientId} 
+                       onChange={(e) => handleLoadClientProfile(e.target.value)}
+                    >
+                        <option value="">Load Client...</option>
+                        {clientProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <button onClick={handleSaveClientProfile} className="text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 p-2 rounded-lg hover:bg-indigo-100 transition" title={t.saveClient}>
+                       <Save className="w-4 h-4" />
+                    </button>
+                 </div>
+              </div>
+
               <div><label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Client Name</label><input type="text" value={client.name} onChange={e => setClient({...client, name: e.target.value})} className="input-field" /></div>
               <div><label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Client Phone</label><input type="tel" inputMode="numeric" value={client.phone} onChange={e => setClient({...client, phone: e.target.value})} className="input-field" /></div>
               <div><label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Site Address</label><input type="text" value={client.address} onChange={e => setClient({...client, address: e.target.value})} className="input-field" /></div>

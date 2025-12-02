@@ -19,6 +19,12 @@ export interface ClientDetails {
   address: string;
 }
 
+export interface ClientProfile {
+  id: string;
+  name: string; // Profile display name
+  details: ClientDetails;
+}
+
 export type SocialPlatform = 'Instagram' | 'Facebook' | 'YouTube' | 'Twitter' | 'LinkedIn' | 'WhatsApp';
 
 export interface SocialLink {
@@ -124,6 +130,7 @@ export interface BackupData {
   user: UserProfile | null;
   history: SavedBillData[];
   profiles: ContractorProfile[];
+  clientProfiles: ClientProfile[]; // Added for backup
   draft: SavedBillData | null;
   lastBackupTime: number;
 }

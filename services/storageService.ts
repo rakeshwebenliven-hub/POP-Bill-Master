@@ -1,10 +1,11 @@
 
-import { SavedBillData, ContractorProfile, ContractorDetails, PaymentStatus } from '../types';
+import { SavedBillData, ContractorProfile, ContractorDetails, PaymentStatus, ClientDetails, ClientProfile } from '../types';
 
 const DRAFT_KEY = 'pop_bill_draft';
 const HISTORY_KEY = 'pop_bill_history';
 const TRASH_KEY = 'pop_bill_trash';
 const PROFILES_KEY = 'pop_contractor_profiles';
+const CLIENT_PROFILES_KEY = 'pop_client_profiles';
 
 // --- Drafts ---
 
@@ -132,7 +133,7 @@ export const updateBillStatus = (id: string, status: PaymentStatus) => {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
 };
 
-// --- Profiles (New) ---
+// --- Contractor Profiles ---
 
 export const saveProfile = (details: ContractorDetails, name?: string): ContractorProfile => {
   const profiles = getProfiles();
@@ -156,6 +157,32 @@ export const deleteProfile = (id: string) => {
   const profiles = getProfiles();
   const updated = profiles.filter(p => p.id !== id);
   localStorage.setItem(PROFILES_KEY, JSON.stringify(updated));
+};
+
+// --- Client Profiles (New) ---
+
+export const saveClientProfile = (details: ClientDetails): ClientProfile => {
+  const profiles = getClientProfiles();
+  const newProfile: ClientProfile = {
+    id: Date.now().toString(),
+    name: details.name || 'New Client',
+    details
+  };
+  
+  const updatedProfiles = [...profiles, newProfile];
+  localStorage.setItem(CLIENT_PROFILES_KEY, JSON.stringify(updatedProfiles));
+  return newProfile;
+};
+
+export const getClientProfiles = (): ClientProfile[] => {
+  const data = localStorage.getItem(CLIENT_PROFILES_KEY);
+  return data ? JSON.parse(data) : [];
+};
+
+export const deleteClientProfile = (id: string) => {
+  const profiles = getClientProfiles();
+  const updated = profiles.filter(p => p.id !== id);
+  localStorage.setItem(CLIENT_PROFILES_KEY, JSON.stringify(updated));
 };
 
 // --- Utils ---
