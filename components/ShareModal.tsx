@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { X, FileText, FileDown, Share2, Loader2, Download, CheckCircle2, Copy, Table } from 'lucide-react';
+import { X, FileText, FileDown, Share2, Loader2, Download, CheckCircle2, Copy, Table, MessageCircle } from 'lucide-react';
 import { APP_TEXT } from '../constants';
 import { PaymentStatus, DocumentType } from '../types';
 
@@ -100,6 +100,16 @@ const ShareModal: React.FC<ShareModalProps> = ({
             </div>
           )}
 
+          {/* WhatsApp / Text Share */}
+          <div className="pt-2">
+             <button 
+                onClick={() => wrapShare('text', onShareText)}
+                className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-green-600 hover:bg-green-700 text-white font-bold text-lg active:scale-95 transition shadow-lg shadow-green-200 dark:shadow-none"
+             >
+                <MessageCircle className="w-6 h-6" /> WhatsApp / Text Summary
+             </button>
+          </div>
+
           {/* Primary Actions - Share Grid */}
           <div>
              <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2 block ml-1">Share File</label>
@@ -110,16 +120,16 @@ const ShareModal: React.FC<ShareModalProps> = ({
                     className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 active:scale-95 transition disabled:opacity-50"
                 >
                     {sharingType === 'pdf' ? <Loader2 className="w-6 h-6 animate-spin" /> : <FileText className="w-6 h-6" />}
-                    <span className="font-bold text-sm">PDF</span>
+                    <span className="font-bold text-sm">PDF File</span>
                 </button>
 
                 <button 
                     onClick={() => wrapShare('excel', onShareExcel)}
                     disabled={!!sharingType}
-                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-100 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/40 active:scale-95 transition disabled:opacity-50"
+                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 active:scale-95 transition disabled:opacity-50"
                 >
                     {sharingType === 'excel' ? <Loader2 className="w-6 h-6 animate-spin" /> : <Table className="w-6 h-6" />}
-                    <span className="font-bold text-sm">Excel</span>
+                    <span className="font-bold text-sm">Excel File</span>
                 </button>
              </div>
           </div>
@@ -141,24 +151,6 @@ const ShareModal: React.FC<ShareModalProps> = ({
                  >
                     <FileDown className="w-4 h-4" /> Excel
                  </button>
-             </div>
-          </div>
-
-          {/* Tertiary Action - Text Share */}
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-             <div className="flex gap-2">
-                <button 
-                    onClick={() => wrapShare('text', onShareText)}
-                    className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 transition"
-                >
-                    <Share2 className="w-4 h-4" /> Share Summary
-                </button>
-                <button 
-                    onClick={handleCopy}
-                    className="w-12 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 transition"
-                >
-                    {copied ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
-                </button>
              </div>
           </div>
 

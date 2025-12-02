@@ -428,7 +428,7 @@ const App: React.FC = () => {
   const validateAndSwitchToItems = () => {
       // Validate Contractor Details (Either Name or Company Name required)
       if (!contractor.companyName?.trim() && !contractor.name?.trim()) {
-          showToast("Please fill Contractor / Business Details", 'error');
+          showToast("Please fill My Business Details", 'error');
           return;
       }
       
@@ -982,10 +982,11 @@ const App: React.FC = () => {
   const isLinear = ['rft', 'r.mt'].includes(currentItem.unit || '');
 
   const getAmountGridClass = () => {
-      if (['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(currentItem.unit || '')) return "col-span-1 sm:col-span-2";
-      if (['cu.ft', 'cu.mt', 'brass'].includes(currentItem.unit || '')) return "col-span-2 sm:col-span-1";
-      if (['rft', 'r.mt'].includes(currentItem.unit || '')) return "col-span-2 sm:col-span-3";
-      return "col-span-2 sm:col-span-5";
+      // Mobile: Full Width row. Desktop: Flexible based on unit.
+      if (['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(currentItem.unit || '')) return "col-span-12 sm:col-span-2";
+      if (['cu.ft', 'cu.mt', 'brass'].includes(currentItem.unit || '')) return "col-span-12 sm:col-span-1";
+      if (['rft', 'r.mt'].includes(currentItem.unit || '')) return "col-span-12 sm:col-span-3";
+      return "col-span-12 sm:col-span-5";
   };
 
   if (isLoadingAuth) {
@@ -1069,8 +1070,8 @@ const App: React.FC = () => {
           <div className="flex bg-black/20 p-1 rounded-xl gap-1 backdrop-blur-md">
              <button onClick={() => setActiveTab('details')} className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5 ${activeTab === 'details' ? 'bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 shadow-md transform scale-[1.01]' : 'text-indigo-200 hover:bg-white/5'}`}>
                <Contact className="w-4 h-4 sm:hidden" />
-               <span className="hidden sm:inline">Contractor/Business & Client Details</span>
-               <span className="sm:hidden">Details</span>
+               <span className="hidden sm:inline">{t.contractorDetails}</span>
+               <span className="sm:hidden">My Details</span>
              </button>
              <button onClick={() => validateAndSwitchToItems()} className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5 ${activeTab === 'items' ? 'bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 shadow-md transform scale-[1.01]' : 'text-indigo-200 hover:bg-white/5'}`}>
                <LayoutList className="w-4 h-4 sm:hidden" />
@@ -1309,28 +1310,31 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Universal Input Grid - Compact Mode */}
-              <div className="grid grid-cols-2 sm:grid-cols-7 gap-3 mb-5">
-                <div className="col-span-2 sm:col-span-2">
+              {/* Universal Input Grid - Optimized for Mobile Stack Layout */}
+              <div className="grid grid-cols-12 gap-3 mb-5">
+                
+                {/* Row 1: Floor & Unit */}
+                <div className="col-span-6 sm:col-span-2">
                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 ml-1">{t.floor}</label>
                    <input list="floors" placeholder="Ground Floor" className="input-field text-sm" value={currentItem.floor || ''} onChange={e => setCurrentItem({...currentItem, floor: e.target.value})} />
                    <datalist id="floors">{Object.values(t.floors).map(f => <option key={f} value={f} />)}</datalist>
                 </div>
                 
-                <div className={`col-span-2 ${isSimpleUnit ? 'sm:col-span-2' : 'sm:col-span-1'}`}>
+                <div className={`col-span-6 ${isSimpleUnit ? 'sm:col-span-2' : 'sm:col-span-1'}`}>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 ml-1">{t.unit}</label>
                   <select className="input-field appearance-none text-center text-sm" value={currentItem.unit} onChange={e => setCurrentItem({...currentItem, unit: e.target.value as any})}>
                     {CONSTRUCTION_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
                   </select>
                 </div>
 
-                <div className={`col-span-2 ${isSimpleUnit ? 'sm:col-span-3' : 'sm:col-span-4'} relative z-20`}>
+                {/* Row 2: Description (Full Width on Mobile) */}
+                <div className={`col-span-12 ${isSimpleUnit ? 'sm:col-span-3' : 'sm:col-span-4'} relative z-20`}>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 ml-1">{t.description}</label>
                   <div className="relative">
                       <input 
                         type="text" 
-                        placeholder="Description" 
-                        className="input-field text-sm w-full" 
+                        placeholder="Item Description" 
+                        className="input-field text-sm w-full font-medium" 
                         value={currentItem.description} 
                         onChange={e => handleDescriptionChange(e.target.value)}
                         onFocus={() => {
@@ -1356,20 +1360,21 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 
+                {/* Row 3: Dimensions (Stack of 3 on mobile if needed, or 4-4-4 split) */}
                 {!isSimpleUnit && (
                     <>
-                        <div className="col-span-1">
+                        <div className="col-span-4 sm:col-span-1">
                             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 ml-1">{t.length}</label>
                             <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center text-sm" value={currentItem.length || ''} onChange={e => setCurrentItem({...currentItem, length: parseFloat(e.target.value)})} onFocus={(e) => e.target.select()} />
                         </div>
                         {!isLinear && (
-                            <div className="col-span-1">
+                            <div className="col-span-4 sm:col-span-1">
                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 ml-1">{t.width}</label>
                                 <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center text-sm" value={currentItem.width || ''} onChange={e => setCurrentItem({...currentItem, width: parseFloat(e.target.value)})} onFocus={(e) => e.target.select()} />
                             </div>
                         )}
                         {isVolumetric && (
-                            <div className="col-span-1">
+                            <div className="col-span-4 sm:col-span-1">
                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 ml-1">{t.height}</label>
                                 <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center text-sm" value={currentItem.height || ''} onChange={e => setCurrentItem({...currentItem, height: parseFloat(e.target.value)})} onFocus={(e) => e.target.select()} />
                             </div>
@@ -1377,37 +1382,43 @@ const App: React.FC = () => {
                     </>
                 )}
 
-                <div className="col-span-1">
+                {/* Row 4: Qty & Rate */}
+                <div className="col-span-6 sm:col-span-1">
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 ml-1">{t.quantity}</label>
-                  <input type="number" inputMode="decimal" min="1" placeholder="1" className="input-field text-center text-sm" value={currentItem.quantity || ''} onChange={e => setCurrentItem({...currentItem, quantity: parseFloat(e.target.value)})} onFocus={(e) => e.target.select()} />
+                  <input type="number" inputMode="decimal" min="1" placeholder="1" className="input-field text-center text-sm font-semibold" value={currentItem.quantity || ''} onChange={e => setCurrentItem({...currentItem, quantity: parseFloat(e.target.value)})} onFocus={(e) => e.target.select()} />
                 </div>
                 
-                <div className="col-span-1">
+                <div className="col-span-6 sm:col-span-1">
                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 ml-1">{t.rate}</label>
                    <input type="number" inputMode="decimal" min="0" placeholder="0" className="input-field text-center font-bold text-slate-700 dark:text-white text-sm" value={currentItem.rate || ''} onChange={e => setCurrentItem({...currentItem, rate: parseFloat(e.target.value)})} onFocus={(e) => e.target.select()} />
                 </div>
 
                 {!isSimpleUnit && (
-                    <div className="col-span-1">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 ml-1">Area</label>
-                    <div className="input-field bg-slate-100 dark:bg-slate-800 text-center flex items-center justify-center font-bold text-slate-700 dark:text-slate-200 truncate text-xs p-0">
-                        {calculateItemArea(currentItem.length || 0, currentItem.width || 0, currentItem.height || 0, currentItem.quantity || 1, currentItem.unit || 'sq.ft').toFixed(2)}
-                    </div>
+                    <div className="col-span-12 sm:col-span-1 flex flex-col justify-end pb-1 sm:pb-0">
+                      <div className="bg-slate-100 dark:bg-slate-800 text-center rounded-lg py-2 px-1">
+                          <span className="text-[10px] text-slate-400 block uppercase font-bold">Total Area</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-200 text-xs">
+                            {calculateItemArea(currentItem.length || 0, currentItem.width || 0, currentItem.height || 0, currentItem.quantity || 1, currentItem.unit || 'sq.ft').toFixed(2)}
+                          </span>
+                      </div>
                     </div>
                 )}
                 
-                <div className={`${getAmountGridClass()} flex items-end`}>
-                   <div className="w-full h-[46px] bg-slate-900 dark:bg-black px-3 rounded-xl border border-transparent text-right font-mono font-bold text-green-400 flex items-center justify-end shadow-inner tracking-widest text-lg overflow-hidden">
-                      {calculateAmount(currentItem.length || 0, currentItem.width || 0, currentItem.height || 0, currentItem.quantity || 1, currentItem.rate || 0, currentItem.unit || 'sq.ft').toFixed(0)}
+                {/* Amount Display - Full Width on Mobile, Flexible on Desktop */}
+                <div className={`${getAmountGridClass()} flex items-end mt-2 sm:mt-0`}>
+                   <div className="w-full h-[52px] bg-slate-900 dark:bg-black px-4 rounded-xl border border-transparent text-right font-mono font-bold text-green-400 flex items-center justify-between shadow-inner tracking-widest text-xl overflow-hidden relative">
+                      <span className="text-[10px] text-slate-500 font-sans tracking-normal absolute top-1 left-3 uppercase">Total Amount</span>
+                      <span className="text-slate-600 text-lg">₹</span>
+                      <span>{calculateAmount(currentItem.length || 0, currentItem.width || 0, currentItem.height || 0, currentItem.quantity || 1, currentItem.rate || 0, currentItem.unit || 'sq.ft').toFixed(0)}</span>
                    </div>
                 </div>
               </div>
 
               <div className="flex gap-3 pt-2 relative z-10">
                  {editingId && (
-                   <button onClick={handleCancelEdit} className="flex-1 py-3 rounded-xl font-bold border-2 border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition text-sm">{t.cancelEdit}</button>
+                   <button onClick={handleCancelEdit} className="flex-1 py-3.5 rounded-xl font-bold border-2 border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition text-sm">{t.cancelEdit}</button>
                  )}
-                 <button onClick={handleAddItem} disabled={!currentItem.description || !currentItem.rate} className="flex-1 btn-primary py-3 flex justify-center items-center gap-2 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed text-sm">
+                 <button onClick={handleAddItem} disabled={!currentItem.description || !currentItem.rate} className="flex-1 btn-primary py-3.5 flex justify-center items-center gap-2 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed text-sm">
                   {editingId ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                   {editingId ? t.updateItem : t.confirm}
                 </button>
@@ -1529,10 +1540,16 @@ const App: React.FC = () => {
       {/* --- BOTTOM ACTION BAR --- */}
       <div className="fixed bottom-0 left-0 right-0 glass-panel z-40 safe-area-bottom pb-4 sm:pb-3 shadow-[0_-8px_30px_rgba(0,0,0,0.1)]">
          <div className="max-w-4xl mx-auto px-4 py-3 grid grid-cols-2 gap-3">
-            <button onClick={() => setIsShareModalOpen(true)} className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition active:scale-95 shadow-sm border border-slate-200 dark:border-slate-700 text-sm" disabled={items.length === 0}><Share2 className="w-4 h-4" /> Export / Share</button>
+            <button 
+                onClick={() => setIsShareModalOpen(true)} 
+                className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-bold bg-indigo-600 dark:bg-indigo-600 text-white hover:bg-indigo-700 dark:hover:bg-indigo-700 transition active:scale-95 shadow-lg shadow-indigo-200 dark:shadow-none text-sm border-0" 
+                disabled={items.length === 0}
+            >
+                <Share2 className="w-4 h-4" /> Export / Share
+            </button>
             <button 
                 onClick={handleSaveBill} 
-                className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-white transition shadow-lg active:scale-95 text-sm ${documentType === 'estimate' ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-200 dark:shadow-none' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200 dark:shadow-none'}`}
+                className={`flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 transition active:scale-95 text-sm shadow-sm`}
             >
                 <Save className="w-4 h-4" /> {documentType === 'estimate' ? t.saveEstimate : t.saveBill}
             </button>
