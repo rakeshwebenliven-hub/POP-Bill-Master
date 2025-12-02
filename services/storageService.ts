@@ -181,12 +181,14 @@ export const deleteProfile = (id: string) => {
 
 // --- Client Profiles (Prevent Duplicates) ---
 
-export const saveClientProfile = (details: ClientDetails): ClientProfile => {
+export const saveClientProfile = (details: ClientDetails, contractorId?: string): ClientProfile => {
   const profiles = getClientProfiles();
   
   // Check if a client with this name already exists
   const existingIndex = profiles.findIndex(p => 
-    p.details.name.trim().toLowerCase() === details.name.trim().toLowerCase()
+    p.details.name.trim().toLowerCase() === details.name.trim().toLowerCase() &&
+    // Optional: Only treat as duplicate if it belongs to same contractor or is global
+    (!contractorId || !p.contractorId || p.contractorId === contractorId)
   );
 
   if (existingIndex >= 0) {
@@ -194,6 +196,7 @@ export const saveClientProfile = (details: ClientDetails): ClientProfile => {
     const existingProfile = profiles[existingIndex];
     const updatedProfile = {
       ...existingProfile,
+      contractorId: contractorId || existingProfile.contractorId, // Update link if provided
       details: details // Overwrite with new phone/address
     };
     
@@ -205,6 +208,7 @@ export const saveClientProfile = (details: ClientDetails): ClientProfile => {
   // Create new if not found
   const newProfile: ClientProfile = {
     id: Date.now().toString(),
+    contractorId: contractorId,
     name: details.name || 'New Client',
     details
   };

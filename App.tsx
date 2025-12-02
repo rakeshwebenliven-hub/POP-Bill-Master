@@ -670,7 +670,9 @@ const App: React.FC = () => {
        showToast("Client name is required", 'error');
        return;
      }
-     const newProfile = saveClientProfile(client);
+     // Pass current Contractor ID to link client to this business profile
+     const newProfile = saveClientProfile(client, selectedProfileId);
+     
      // Reload client profiles from storage to handle updates correctly
      setClientProfiles(getClientProfiles());
      setSelectedClientId(newProfile.id);
@@ -715,6 +717,13 @@ const App: React.FC = () => {
       reader.readAsDataURL(file);
     }
   };
+
+  // Filter clients based on selected contractor profile
+  const filteredClientProfiles = useMemo(() => {
+      if (!selectedProfileId) return clientProfiles;
+      // Show clients linked to this contractor OR global clients (no contractorId)
+      return clientProfiles.filter(p => !p.contractorId || p.contractorId === selectedProfileId);
+  }, [clientProfiles, selectedProfileId]);
 
   const generateBillText = () => {
       const dateStr = new Date(billDate).toLocaleDateString();
@@ -1114,7 +1123,7 @@ const App: React.FC = () => {
                        onChange={(e) => handleLoadClientProfile(e.target.value)}
                     >
                         <option value="">Load Client...</option>
-                        {clientProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {filteredClientProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
 
                     <button onClick={handleNewClientProfile} className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition active:scale-95" title="New / Clear">

@@ -21,6 +21,7 @@ export interface ClientDetails {
 
 export interface ClientProfile {
   id: string;
+  contractorId?: string; // Link to specific contractor profile
   name: string; // Profile display name
   details: ClientDetails;
 }
