@@ -77,6 +77,10 @@ export interface ParsedBillItem {
 
 export type PaymentStatus = 'Paid' | 'Pending' | 'Partial';
 
+// New types for Estimates
+export type DocumentType = 'invoice' | 'estimate';
+export type EstimateStatus = 'Draft' | 'Pending Approval' | 'In Review' | 'Approved' | 'Rejected';
+
 export interface PaymentRecord {
   id: string;
   amount: number;
@@ -87,6 +91,9 @@ export interface PaymentRecord {
 export interface SavedBillData {
   id: string;
   timestamp: number;
+  type?: DocumentType; // Distinguish between Bill and Estimate
+  estimateStatus?: EstimateStatus; // Only for estimates
+  convertedToBillId?: string; // Link to the created bill if converted
   billNumber: string;
   billDate?: string; // YYYY-MM-DD
   paymentStatus: PaymentStatus;

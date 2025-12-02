@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
-import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, LayoutList, Contact } from 'lucide-react';
-import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile, ClientProfile } from './types';
+import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, LayoutList, Contact, FileCheck } from 'lucide-react';
+import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile, ClientProfile, DocumentType, EstimateStatus } from './types';
 import { APP_TEXT, SUBSCRIPTION_PLANS, CONSTRUCTION_UNITS, AUTO_SUGGEST_ITEMS } from './constants';
 import { generateExcel } from './services/excelService';
 import { generatePDF } from './services/pdfService';
-import { saveDraft, loadDraft, saveToHistory, getHistory, deleteFromHistory, saveProfile, getProfiles, deleteProfile, updateBillStatus, getTrash, restoreFromTrash, permanentDelete, saveClientProfile, getClientProfiles, deleteClientProfile } from './services/storageService';
+import { saveDraft, loadDraft, saveToHistory, getHistory, deleteFromHistory, saveProfile, getProfiles, deleteProfile, updateBillStatus, getTrash, restoreFromTrash, permanentDelete, saveClientProfile, getClientProfiles, deleteClientProfile, updateEstimateStatus } from './services/storageService';
 import { getCurrentUser, checkSubscriptionAccess, logoutUser } from './services/authService';
 import { initGoogleDrive, backupToDrive, restoreFromDrive } from './services/googleDriveService';
 
@@ -142,6 +142,10 @@ const App: React.FC = () => {
     return false;
   });
 
+  // State
+  const [documentType, setDocumentType] = useState<DocumentType>('invoice');
+  const [estimateStatus, setEstimateStatus] = useState<EstimateStatus>('Draft');
+  
   const [billNumber, setBillNumber] = useState('');
   const [billDate, setBillDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('Pending');
@@ -253,9 +257,11 @@ const App: React.FC = () => {
     const history = getHistory();
     setHistoryItems(history);
     setTrashItems(getTrash());
-    let nextBillNum = generateNextBillNumber(history);
+    let nextBillNum = generateNextBillNumber(history, documentType);
 
     if (draft) {
+      setDocumentType(draft.type || 'invoice');
+      setEstimateStatus(draft.estimateStatus || 'Draft');
       setContractor({
          ...draft.contractor,
          bankDetails: draft.contractor.bankDetails || {
@@ -303,10 +309,18 @@ const App: React.FC = () => {
     }
   }, [user]);
 
+  // Generate Document Number automatically when switching types
+  useEffect(() => {
+      const history = getHistory();
+      setBillNumber(generateNextBillNumber(history, documentType));
+  }, [documentType]);
+
   useEffect(() => {
     if (!user) return;
     if (items.length > 0 || client.name || contractor.companyName) {
       const billData = {
+        type: documentType,
+        estimateStatus,
         billNumber,
         billDate,
         paymentStatus,
@@ -326,7 +340,7 @@ const App: React.FC = () => {
          saveToHistory(billData);
       }
     }
-  }, [items, client, contractor, gstEnabled, gstRate, billNumber, billDate, paymentStatus, payments, disclaimer, user]);
+  }, [items, client, contractor, gstEnabled, gstRate, billNumber, billDate, paymentStatus, payments, disclaimer, user, documentType, estimateStatus]);
 
   const toggleTheme = () => {
     const newTheme = !isDarkMode ? 'dark' : 'light';
@@ -364,18 +378,23 @@ const App: React.FC = () => {
       }
   };
 
-  const generateNextBillNumber = (history: SavedBillData[]) => {
-     if (history.length === 0) return "INV-001";
-     const lastBill = history[0].billNumber;
+  const generateNextBillNumber = (history: SavedBillData[], type: DocumentType = 'invoice') => {
+     // Filter history by type
+     const relevantHistory = history.filter(h => (h.type || 'invoice') === type);
+     const prefix = type === 'invoice' ? 'INV' : 'EST';
+     
+     if (relevantHistory.length === 0) return `${prefix}-001`;
+     
+     const lastBill = relevantHistory[0].billNumber;
      const match = lastBill.match(/(\d+)$/);
      if (match) {
         const num = parseInt(match[1]);
         const nextNum = num + 1;
-        const prefix = lastBill.slice(0, match.index);
+        const prefixStr = lastBill.slice(0, match.index);
         const paddedNum = nextNum.toString().padStart(match[0].length, '0');
-        return prefix + paddedNum;
+        return prefixStr + paddedNum;
      }
-     return `INV-${(history.length + 1).toString().padStart(3, '0')}`;
+     return `${prefix}-${(relevantHistory.length + 1).toString().padStart(3, '0')}`;
   };
 
   const calculateItemArea = (len: number, wid: number, h: number, qty: number, unit: string) => {
@@ -555,6 +574,8 @@ const App: React.FC = () => {
 
   const handleSaveBill = () => {
     saveToHistory({
+      type: documentType,
+      estimateStatus: documentType === 'estimate' ? estimateStatus : undefined,
       billNumber,
       billDate,
       paymentStatus,
@@ -568,23 +589,26 @@ const App: React.FC = () => {
       disclaimer
     });
     setHistoryItems(getHistory());
-    showToast(t.billSaved);
+    showToast(documentType === 'invoice' ? t.billSaved : t.estimateSaved);
   };
 
   const handleNewBill = () => {
-     if (items.length > 0 && !window.confirm("Start new bill? Unsaved changes will be lost.")) {
+     if (items.length > 0 && !window.confirm("Start new document? Unsaved changes will be lost.")) {
         return;
      }
      setClient({ name: '', phone: '', address: '' });
      setItems([]);
      setPayments([]);
-     setBillNumber(generateNextBillNumber(historyItems));
+     setBillNumber(generateNextBillNumber(historyItems, documentType));
      setBillDate(new Date().toISOString().split('T')[0]);
      setPaymentStatus('Pending');
-     showToast("New bill started");
+     setEstimateStatus('Draft');
+     showToast("New document started");
   };
 
   const handleLoadBill = (bill: SavedBillData) => {
+    setDocumentType(bill.type || 'invoice');
+    setEstimateStatus(bill.estimateStatus || 'Draft');
     setBillNumber(bill.billNumber || '');
     setBillDate(bill.billDate || new Date(bill.timestamp).toISOString().split('T')[0]);
     setPaymentStatus(bill.paymentStatus || 'Pending');
@@ -631,18 +655,51 @@ const App: React.FC = () => {
      restoreFromTrash(id);
      setHistoryItems(getHistory());
      setTrashItems(getTrash());
-     showToast("Bill restored");
+     showToast("Restored");
   };
 
   const handlePermanentDelete = (id: string) => {
      permanentDelete(id);
      setTrashItems(getTrash());
-     showToast("Bill deleted forever");
+     showToast("Deleted forever");
   };
 
   const handleUpdateHistoryStatus = (id: string, status: PaymentStatus) => {
      updateBillStatus(id, status);
      setHistoryItems(getHistory());
+  };
+
+  const handleUpdateEstimateStatus = (id: string, status: EstimateStatus) => {
+     updateEstimateStatus(id, status);
+     setHistoryItems(getHistory());
+  };
+
+  // Convert Estimate to Invoice
+  const handleConvertToInvoice = (estimate: SavedBillData) => {
+      if(!window.confirm("Convert this approved estimate to an invoice? This will create a new invoice.")) return;
+
+      const history = getHistory();
+      const newBillNumber = generateNextBillNumber(history, 'invoice');
+      
+      const newInvoice: any = {
+          ...estimate,
+          id: Date.now().toString(),
+          timestamp: Date.now(),
+          type: 'invoice',
+          billNumber: newBillNumber,
+          paymentStatus: 'Pending',
+          estimateStatus: undefined,
+          convertedToBillId: undefined // New invoice shouldn't link to anything yet
+      };
+
+      saveToHistory(newInvoice);
+      setHistoryItems(getHistory());
+      
+      // Optionally update the original estimate to link to this invoice (not implemented deep linking yet, but useful for logic)
+      showToast("Converted to Invoice successfully!");
+      
+      // Load the new invoice
+      handleLoadBill(newInvoice);
   };
 
   const handleSaveProfile = () => {
@@ -744,8 +801,9 @@ const App: React.FC = () => {
 
   const generateBillText = () => {
       const dateStr = new Date(billDate).toLocaleDateString();
-      let text = `*INVOICE / BILL*\n`;
-      text += `Bill No: ${billNumber}\n`;
+      const typeLabel = documentType === 'invoice' ? 'INVOICE / BILL' : 'ESTIMATE / QUOTE';
+      let text = `*${typeLabel}*\n`;
+      text += `No: ${billNumber}\n`;
       text += `Date: ${dateStr}\n\n`;
       text += `*From:*\n${contractor.companyName || contractor.name}\n${contractor.phone}\n\n`;
       text += `*To:*\n${client.name}\n\n`;
@@ -754,9 +812,9 @@ const App: React.FC = () => {
           text += `${idx+1}. ${item.description} - ${item.quantity} ${item.unit} x ${item.rate} = ₹${item.amount.toFixed(0)}\n`;
       });
       text += `\n*Total: ₹${totals.grandTotal.toFixed(2)}*`;
-      if (totals.advance > 0) text += `\nPaid: ₹${totals.advance.toFixed(2)}\nBalance: ₹${totals.balance.toFixed(2)}`;
+      if (totals.advance > 0 && documentType === 'invoice') text += `\nPaid: ₹${totals.advance.toFixed(2)}\nBalance: ₹${totals.balance.toFixed(2)}`;
       
-      if (contractor.bankDetails?.upiId) {
+      if (contractor.bankDetails?.upiId && documentType === 'invoice') {
           text += `\n\nPay via UPI: ${contractor.bankDetails.upiId}`;
       }
       return text;
@@ -765,7 +823,7 @@ const App: React.FC = () => {
   const handleShareText = (status: PaymentStatus) => {
      const text = generateBillText();
      if (navigator.share) {
-        navigator.share({ title: 'Bill Summary', text }).catch(() => {});
+        navigator.share({ title: documentType === 'invoice' ? 'Bill Summary' : 'Estimate Summary', text }).catch(() => {});
      } else {
         const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
         window.open(url, '_blank');
@@ -774,7 +832,7 @@ const App: React.FC = () => {
 
   const handleShareFile = async (type: 'pdf' | 'excel', status: PaymentStatus) => {
       const safeBillNum = (billNumber || 'Draft').replace(/[^a-z0-9]/gi, '_');
-      const fileName = `Bill_${safeBillNum}.${type === 'pdf' ? 'pdf' : 'xlsx'}`;
+      const fileName = `${documentType === 'invoice' ? 'Bill' : 'Estimate'}_${safeBillNum}.${type === 'pdf' ? 'pdf' : 'xlsx'}`;
       let blob: Blob;
 
       if (type === 'pdf') {
@@ -789,8 +847,8 @@ const App: React.FC = () => {
           try {
               await navigator.share({
                   files: [new File([blob], fileName, { type: blob.type })],
-                  title: 'Share Bill',
-                  text: `Here is the bill ${fileName}`
+                  title: documentType === 'invoice' ? 'Share Bill' : 'Share Estimate',
+                  text: `Here is the ${documentType} ${fileName}`
               });
           } catch (e) {
               console.error("Share failed", e);
@@ -807,8 +865,6 @@ const App: React.FC = () => {
   };
 
   const handleDownloadFile = (type: 'pdf' | 'excel', status: PaymentStatus) => {
-      const safeBillNum = (billNumber || 'Draft').replace(/[^a-z0-9]/gi, '_');
-      
       if (type === 'pdf') {
           generatePDF(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, false);
       } else {
@@ -939,7 +995,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-36 sm:pb-40 font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200">
+    <div className={`min-h-screen pb-36 sm:pb-40 font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200 ${documentType === 'estimate' ? 'bg-amber-50/30 dark:bg-slate-950' : 'bg-slate-50 dark:bg-slate-950'}`}>
       
       {toast && (
          <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-full shadow-xl animate-in slide-in-from-top duration-300 ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
@@ -949,11 +1005,11 @@ const App: React.FC = () => {
       )}
 
       {/* --- HEADER --- */}
-      <header className="sticky top-0 z-30 safe-area-top glass-panel backdrop-blur-xl bg-indigo-600/95 dark:bg-indigo-950/90 text-white shadow-lg border-b border-white/10">
+      <header className={`sticky top-0 z-30 safe-area-top glass-panel backdrop-blur-xl text-white shadow-lg border-b border-white/10 transition-colors duration-300 ${documentType === 'estimate' ? 'bg-amber-600/95 dark:bg-amber-900/90' : 'bg-indigo-600/95 dark:bg-indigo-950/90'}`}>
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex justify-between items-center mb-3">
             <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2 tracking-tight text-white drop-shadow-sm">
-              <Building2 className="w-6 h-6 sm:w-7 sm:h-7 text-indigo-200" />
+              <Building2 className="w-6 h-6 sm:w-7 sm:h-7 text-white/90" />
               <span className="hidden sm:inline">Contractor Bill Master</span>
               <span className="sm:hidden">Bill Master</span>
               {access.isTrial && (
@@ -1016,16 +1072,51 @@ const App: React.FC = () => {
         {/* --- DETAILS TAB --- */}
         {activeTab === 'details' && (
           <div className="space-y-4 sm:space-y-6 animate-slide-up">
+            
+            {/* Document Type Switcher */}
+            <div className="flex p-1 bg-slate-200 dark:bg-slate-800 rounded-xl">
+               <button 
+                 onClick={() => setDocumentType('invoice')}
+                 className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 ${documentType === 'invoice' ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600'}`}
+               >
+                  <FileText className="w-4 h-4" /> {t.modeInvoice}
+               </button>
+               <button 
+                 onClick={() => setDocumentType('estimate')}
+                 className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 ${documentType === 'estimate' ? 'bg-white dark:bg-slate-700 text-amber-700 dark:text-amber-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-amber-600'}`}
+               >
+                  <FilePlus className="w-4 h-4" /> {t.modeEstimate}
+               </button>
+            </div>
+
             {/* Bill Meta - New Bill Button moved to Header */}
-            <div className="card p-4 sm:p-5 grid grid-cols-2 gap-4">
+            <div className={`card p-4 sm:p-5 grid grid-cols-2 gap-4 ${documentType === 'estimate' ? 'border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-slate-900' : ''}`}>
                 <div>
-                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.billNumber}</label>
+                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{documentType === 'invoice' ? t.billNumber : t.estimateNumber}</label>
                    <input type="text" value={billNumber} onChange={(e) => setBillNumber(e.target.value)} className="w-full bg-slate-100 dark:bg-slate-800/80 border-none rounded-xl font-mono font-bold text-base sm:text-lg dark:text-white focus:ring-2 focus:ring-indigo-500 p-2.5 tracking-wide" />
                 </div>
                 <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.billDate}</label>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{documentType === 'invoice' ? t.billDate : t.estimateDate}</label>
                     <input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} className="w-full bg-slate-100 dark:bg-slate-800/80 border-none rounded-xl font-mono font-bold text-base sm:text-lg dark:text-white focus:ring-2 focus:ring-indigo-500 p-2.5 tracking-wide" />
                 </div>
+                
+                {/* Estimate Status Selector (Only for Estimates) */}
+                {documentType === 'estimate' && (
+                   <div className="col-span-2">
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.estimateStatus}</label>
+                      <div className="grid grid-cols-5 gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                         {(['Draft', 'Pending Approval', 'In Review', 'Approved', 'Rejected'] as EstimateStatus[]).map(status => (
+                            <button
+                               key={status}
+                               onClick={() => setEstimateStatus(status)}
+                               className={`py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${estimateStatus === status ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                            >
+                               {status === 'Pending Approval' ? 'Pending' : status}
+                            </button>
+                         ))}
+                      </div>
+                   </div>
+                )}
             </div>
 
             {/* Contractor Form */}
@@ -1328,8 +1419,8 @@ const App: React.FC = () => {
             </div>
             
             {/* Bill Summary */}
-            <div className="card p-4 sm:p-5 space-y-3">
-               <h3 className="font-bold text-base border-b border-slate-100 dark:border-slate-800 pb-2 mb-1 flex items-center gap-2"><FileText className="w-4 h-4 text-indigo-600" />{t.billSummary}</h3>
+            <div className={`card p-4 sm:p-5 space-y-3 ${documentType === 'estimate' ? 'border-amber-200 dark:border-amber-900/30' : ''}`}>
+               <h3 className="font-bold text-base border-b border-slate-100 dark:border-slate-800 pb-2 mb-1 flex items-center gap-2"><FileText className={`w-4 h-4 ${documentType === 'estimate' ? 'text-amber-600' : 'text-indigo-600'}`} />{t.billSummary}</h3>
                
                <div className="flex justify-between text-slate-600 dark:text-slate-400 text-sm"><span>{t.totalArea}</span><span className="font-bold text-slate-900 dark:text-white">{totals.totalQty.toFixed(2)}</span></div>
                <div className="flex justify-between text-slate-600 dark:text-slate-400 text-sm"><span>{t.subTotal}</span><span className="font-bold text-slate-900 dark:text-white">₹{totals.subTotal.toFixed(2)}</span></div>
@@ -1355,38 +1446,43 @@ const App: React.FC = () => {
                )}
                
                <div className="flex justify-between items-end pt-3 pb-2 border-t border-slate-100 dark:border-slate-800 mt-1">
-                  <span className="text-base font-bold text-indigo-900 dark:text-indigo-200">{t.grandTotal}</span>
-                  <span className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 tracking-tight">₹{totals.grandTotal.toFixed(2)}</span>
+                  <span className={`text-base font-bold ${documentType === 'estimate' ? 'text-amber-900 dark:text-amber-200' : 'text-indigo-900 dark:text-indigo-200'}`}>{t.grandTotal}</span>
+                  <span className={`text-2xl font-extrabold tracking-tight ${documentType === 'estimate' ? 'text-amber-600 dark:text-amber-400' : 'text-indigo-600 dark:text-indigo-400'}`}>₹{totals.grandTotal.toFixed(2)}</span>
                </div>
                
-               <div className="pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-800">
-                  <h4 className="font-bold text-[10px] text-slate-500 uppercase mb-3 flex justify-between items-center tracking-wider">{t.paymentHistory}<span className="text-green-600 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded">₹{totals.advance.toFixed(2)}</span></h4>
-                  
-                  <div className="grid grid-cols-12 gap-2 mb-3">
-                     <input type="date" className="col-span-12 sm:col-span-3 p-2 border border-slate-200 dark:border-slate-700 rounded-lg text-xs bg-white dark:bg-slate-800 dark:text-white outline-none" value={newPaymentDate} onChange={e => setNewPaymentDate(e.target.value)} />
-                     <div className="col-span-8 sm:col-span-3">
-                        <input type="number" inputMode="decimal" min="0" className="w-full p-2 border border-slate-200 dark:border-slate-700 rounded-lg text-xs bg-white dark:bg-slate-800 dark:text-white outline-none font-bold" placeholder="Amount" value={newPaymentAmount} onChange={e => setNewPaymentAmount(e.target.value)} onFocus={(e) => e.target.select()} />
-                     </div>
-                     <button onClick={handleAddPayment} className="col-span-4 sm:col-span-1 p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center shadow-sm active:scale-95 transition"><Plus className="w-4 h-4" /></button>
-                  </div>
+               {/* Only Show Payments/Balance for Invoices, NOT Estimates */}
+               {documentType === 'invoice' && (
+                   <>
+                        <div className="pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-800">
+                            <h4 className="font-bold text-[10px] text-slate-500 uppercase mb-3 flex justify-between items-center tracking-wider">{t.paymentHistory}<span className="text-green-600 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded">₹{totals.advance.toFixed(2)}</span></h4>
+                            
+                            <div className="grid grid-cols-12 gap-2 mb-3">
+                                <input type="date" className="col-span-12 sm:col-span-3 p-2 border border-slate-200 dark:border-slate-700 rounded-lg text-xs bg-white dark:bg-slate-800 dark:text-white outline-none" value={newPaymentDate} onChange={e => setNewPaymentDate(e.target.value)} />
+                                <div className="col-span-8 sm:col-span-3">
+                                    <input type="number" inputMode="decimal" min="0" className="w-full p-2 border border-slate-200 dark:border-slate-700 rounded-lg text-xs bg-white dark:bg-slate-800 dark:text-white outline-none font-bold" placeholder="Amount" value={newPaymentAmount} onChange={e => setNewPaymentAmount(e.target.value)} onFocus={(e) => e.target.select()} />
+                                </div>
+                                <button onClick={handleAddPayment} className="col-span-4 sm:col-span-1 p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center shadow-sm active:scale-95 transition"><Plus className="w-4 h-4" /></button>
+                            </div>
 
-                  {payments.length > 0 && (
-                     <div className="space-y-1.5 mb-3 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg max-h-32 overflow-y-auto custom-scrollbar">
-                        {payments.map(p => (
-                           <div key={p.id} className="flex justify-between items-center text-xs p-2 bg-white dark:bg-slate-800 rounded border border-slate-100 dark:border-slate-700">
-                              <span className="font-bold text-slate-800 dark:text-slate-100">₹{p.amount}</span>
-                              <span className="text-slate-400">{p.date ? new Date(p.date).toLocaleDateString() : ''}</span>
-                              <button onClick={() => handleDeletePayment(p.id)} className="text-slate-400 hover:text-red-500"><X className="w-3 h-3" /></button>
-                           </div>
-                        ))}
-                     </div>
-                  )}
-               </div>
+                            {payments.length > 0 && (
+                                <div className="space-y-1.5 mb-3 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg max-h-32 overflow-y-auto custom-scrollbar">
+                                    {payments.map(p => (
+                                    <div key={p.id} className="flex justify-between items-center text-xs p-2 bg-white dark:bg-slate-800 rounded border border-slate-100 dark:border-slate-700">
+                                        <span className="font-bold text-slate-800 dark:text-slate-100">₹{p.amount}</span>
+                                        <span className="text-slate-400">{p.date ? new Date(p.date).toLocaleDateString() : ''}</span>
+                                        <button onClick={() => handleDeletePayment(p.id)} className="text-slate-400 hover:text-red-500"><X className="w-3 h-3" /></button>
+                                    </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
 
-               <div className="bg-indigo-600 text-white p-4 rounded-xl flex justify-between items-center shadow-lg shadow-indigo-200 dark:shadow-none">
-                  <span className="font-medium opacity-90 text-sm">{t.balanceDue}</span>
-                  <span className="text-xl font-bold">₹{totals.balance.toFixed(2)}</span>
-               </div>
+                        <div className="bg-indigo-600 text-white p-4 rounded-xl flex justify-between items-center shadow-lg shadow-indigo-200 dark:shadow-none">
+                            <span className="font-medium opacity-90 text-sm">{t.balanceDue}</span>
+                            <span className="text-xl font-bold">₹{totals.balance.toFixed(2)}</span>
+                        </div>
+                   </>
+               )}
                
                <div className="pt-2">
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 block flex items-center gap-1 tracking-wider"><AlertCircle className="w-3 h-3" /> {t.disclaimer}</label>
@@ -1401,12 +1497,31 @@ const App: React.FC = () => {
       <div className="fixed bottom-0 left-0 right-0 glass-panel z-40 safe-area-bottom pb-4 sm:pb-3 shadow-[0_-8px_30px_rgba(0,0,0,0.1)]">
          <div className="max-w-4xl mx-auto px-4 py-3 grid grid-cols-2 gap-3">
             <button onClick={() => setIsShareModalOpen(true)} className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition active:scale-95 shadow-sm border border-slate-200 dark:border-slate-700 text-sm" disabled={items.length === 0}><Share2 className="w-4 h-4" /> Export / Share</button>
-            <button onClick={handleSaveBill} className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-blue-600 dark:bg-blue-600 text-white hover:bg-blue-700 dark:hover:bg-blue-500 transition shadow-lg shadow-blue-200 dark:shadow-none active:scale-95 text-sm"><Save className="w-4 h-4" /> {t.saveBill}</button>
+            <button 
+                onClick={handleSaveBill} 
+                className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-white transition shadow-lg active:scale-95 text-sm ${documentType === 'estimate' ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-200 dark:shadow-none' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200 dark:shadow-none'}`}
+            >
+                <Save className="w-4 h-4" /> {documentType === 'estimate' ? t.saveEstimate : t.saveBill}
+            </button>
          </div>
       </div>
 
       <Suspense fallback={<LoadingFallback />}>
-         {isHistoryModalOpen && <HistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} history={historyItems} trash={trashItems} onLoad={handleLoadBill} onDelete={handleDeleteBill} onRestore={handleRestoreBill} onPermanentDelete={handlePermanentDelete} onUpdateStatus={handleUpdateHistoryStatus} onDownloadPdf={handleHistoryDownloadPdf} onDownloadExcel={handleHistoryDownloadExcel} />}
+         {isHistoryModalOpen && <HistoryModal 
+            isOpen={isHistoryModalOpen} 
+            onClose={() => setIsHistoryModalOpen(false)} 
+            history={historyItems} 
+            trash={trashItems} 
+            onLoad={handleLoadBill} 
+            onDelete={handleDeleteBill} 
+            onRestore={handleRestoreBill} 
+            onPermanentDelete={handlePermanentDelete} 
+            onUpdateStatus={handleUpdateHistoryStatus} 
+            onUpdateEstimateStatus={handleUpdateEstimateStatus}
+            onConvertToInvoice={handleConvertToInvoice}
+            onDownloadPdf={handleHistoryDownloadPdf} 
+            onDownloadExcel={handleHistoryDownloadExcel} 
+         />}
          {isCalcOpen && <CalculatorModal isOpen={isCalcOpen} onClose={() => setIsCalcOpen(false)} />}
          {isVoiceModalOpen && <VoiceEntryModal isOpen={isVoiceModalOpen} onClose={() => setIsVoiceModalOpen(false)} onConfirm={handleVoiceConfirm} />}
          {isShareModalOpen && <ShareModal 

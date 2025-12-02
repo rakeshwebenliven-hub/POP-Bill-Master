@@ -1,5 +1,5 @@
 
-import { SavedBillData, ContractorProfile, ContractorDetails, PaymentStatus, ClientDetails, ClientProfile } from '../types';
+import { SavedBillData, ContractorProfile, ContractorDetails, PaymentStatus, ClientDetails, ClientProfile, DocumentType, EstimateStatus } from '../types';
 
 const DRAFT_KEY = 'pop_bill_draft';
 const HISTORY_KEY = 'pop_bill_history';
@@ -28,17 +28,18 @@ export const loadDraft = (): SavedBillData | null => {
 export const saveToHistory = (data: Omit<SavedBillData, 'id' | 'timestamp'>): SavedBillData => {
   const history = getHistory();
   
-  // 1. Try to find by Bill Number
+  // 1. Try to find by Bill Number AND Type (to distinguish Est-001 from Inv-001)
   let existingIndex = history.findIndex(b => 
     b.billNumber && data.billNumber &&
-    b.billNumber.trim().toLowerCase() === data.billNumber.trim().toLowerCase()
+    b.billNumber.trim().toLowerCase() === data.billNumber.trim().toLowerCase() &&
+    (b.type || 'invoice') === (data.type || 'invoice')
   );
 
-  // 2. Fallback: If Bill Number not found or empty, check by Client Name
-  // We match the MOST RECENT bill (first found) for this client to allow editing without duplication.
+  // 2. Fallback: If Bill Number not found or empty, check by Client Name AND Type
   if (existingIndex === -1 && data.client.name) {
     existingIndex = history.findIndex(b => 
-      b.client.name.trim().toLowerCase() === data.client.name.trim().toLowerCase()
+      b.client.name.trim().toLowerCase() === data.client.name.trim().toLowerCase() &&
+      (b.type || 'invoice') === (data.type || 'invoice')
     );
   }
 
@@ -129,6 +130,14 @@ export const updateBillStatus = (id: string, status: PaymentStatus) => {
   const history = getHistory();
   const updatedHistory = history.map(bill => 
     bill.id === id ? { ...bill, paymentStatus: status } : bill
+  );
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
+};
+
+export const updateEstimateStatus = (id: string, status: EstimateStatus) => {
+  const history = getHistory();
+  const updatedHistory = history.map(bill => 
+    bill.id === id ? { ...bill, estimateStatus: status } : bill
   );
   localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
 };
