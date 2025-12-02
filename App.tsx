@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, LayoutList, Contact } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile } from './types';
@@ -17,6 +16,7 @@ const VoiceEntryModal = lazy(() => import('./components/VoiceEntryModal'));
 const OnboardingFlow = lazy(() => import('./components/OnboardingFlow'));
 const SubscriptionPlans = lazy(() => import('./components/SubscriptionPlans'));
 const ShareModal = lazy(() => import('./components/ShareModal'));
+const ProfileModal = lazy(() => import('./components/ProfileModal'));
 
 interface SwipeableItemProps {
   item: BillItem;
@@ -169,9 +169,7 @@ const App: React.FC = () => {
 
   const [profiles, setProfiles] = useState<ContractorProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState('');
-  const [selectedPlatform, setSelectedPlatform] = useState<SocialPlatform>('Instagram');
-  const [socialUrl, setSocialUrl] = useState('');
-
+  
   const [client, setClient] = useState<ClientDetails>({
     name: '',
     phone: '',
@@ -211,6 +209,7 @@ const App: React.FC = () => {
   const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'items'>('details');
   const [historyItems, setHistoryItems] = useState<SavedBillData[]>([]);
   const [trashItems, setTrashItems] = useState<SavedBillData[]>([]);
@@ -893,8 +892,13 @@ const App: React.FC = () => {
                 <Clock className="w-5 h-5 text-white" />
                 {historyItems.length > 0 && <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-400 rounded-full animate-pulse ring-2 ring-indigo-600"></span>}
               </button>
-              <button onClick={handleNewBill} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-semibold flex items-center gap-1 transition ml-1 active:scale-95 border border-white/10">
-                 <FilePlus className="w-5 h-5" /> <span className="hidden sm:inline">{t.newBill}</span>
+              
+              <button 
+                onClick={() => setIsProfileModalOpen(true)} 
+                className="ml-1 w-9 h-9 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white font-bold text-sm border border-white/10 transition active:scale-95 shadow-sm"
+                title="My Profile"
+              >
+                 {user.name.charAt(0).toUpperCase()}
               </button>
             </div>
           </div>
@@ -934,52 +938,7 @@ const App: React.FC = () => {
         {/* --- DETAILS TAB --- */}
         {activeTab === 'details' && (
           <div className="space-y-4 sm:space-y-6 animate-slide-up">
-            {/* User Profile Card */}
-            <div className="card p-4 sm:p-5">
-                <div className="flex justify-between items-center mb-4">
-                   <h3 className="font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100 text-lg">
-                      <div className="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl">
-                         <User className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                      </div>
-                      {user.name} 
-                      {user.planId !== 'trial' && <Crown className="w-4 h-4 text-amber-500 fill-amber-500" />}
-                   </h3>
-                   <div className="flex gap-2">
-                      <button onClick={handleCloudBackup} disabled={isSyncing} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition" title="Backup">
-                         <Cloud className={`w-4 h-4 ${isSyncing ? 'animate-pulse text-indigo-500' : ''}`} />
-                      </button>
-                      <button onClick={handleCloudRestore} disabled={isSyncing} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-600 transition" title="Restore">
-                         <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                      </button>
-                      <button onClick={() => { logoutUser(); setUser(null); }} className="p-2 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/40 transition">
-                         <LogOut className="w-4 h-4" />
-                      </button>
-                   </div>
-                </div>
-                
-                <div className="flex gap-2 items-center bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 mb-3">
-                   <select className="flex-1 bg-transparent dark:text-white outline-none text-sm font-medium cursor-pointer" value={selectedProfileId} onChange={(e) => handleLoadProfile(e.target.value)}>
-                      <option value="">{t.selectProfile}</option>
-                      {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                   </select>
-                   <button onClick={handleSaveProfile} className="text-xs bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-3 py-1.5 rounded-lg hover:bg-indigo-200 transition font-medium whitespace-nowrap">{t.saveProfile}</button>
-                </div>
-
-                <div className="p-3 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-xl border border-indigo-100 dark:border-indigo-800/50 flex justify-between items-center relative overflow-hidden">
-                   <div className="relative z-10">
-                      <p className="text-[10px] text-indigo-500 dark:text-indigo-400 font-bold uppercase tracking-wider mb-0.5">Current Plan</p>
-                      <div className="font-bold text-sm text-indigo-900 dark:text-indigo-100 flex items-center gap-2">
-                         {getPlanDetails().name}
-                      </div>
-                      <p className="text-[10px] text-indigo-600/80 dark:text-indigo-300/80 mt-0.5 font-medium">{getPlanDetails().expiry}</p>
-                   </div>
-                   <button onClick={() => setShowSubscription(true)} className="relative z-10 text-xs bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-lg font-bold shadow-sm hover:shadow transition flex items-center gap-1 active:scale-95">
-                      {access.isTrial ? 'Upgrade' : 'Plans'} <ChevronRight className="w-3 h-3" />
-                   </button>
-                </div>
-            </div>
-
-            {/* Bill Meta */}
+            {/* Bill Meta - New Bill Button moved to Header */}
             <div className="card p-4 sm:p-5 grid grid-cols-2 gap-4">
                 <div>
                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.billNumber}</label>
@@ -993,9 +952,26 @@ const App: React.FC = () => {
 
             {/* Contractor Form */}
             <div className="card p-4 sm:p-6 space-y-5">
-              <h2 className="text-lg font-bold border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
-                <div className="bg-indigo-100 dark:bg-indigo-900/30 p-1.5 rounded-lg"><User className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /></div> {t.contractorDetails}
-              </h2>
+              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                 <h2 className="text-lg font-bold flex items-center gap-2">
+                   <div className="bg-indigo-100 dark:bg-indigo-900/30 p-1.5 rounded-lg"><User className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /></div> {t.contractorDetails}
+                 </h2>
+                 {/* Saved Profiles Dropdown moved here */}
+                 <div className="flex gap-2 items-center">
+                    <select 
+                       className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm rounded-lg p-1.5 outline-none max-w-[120px] sm:max-w-[180px] dark:text-white"
+                       value={selectedProfileId} 
+                       onChange={(e) => handleLoadProfile(e.target.value)}
+                    >
+                        <option value="">Load Profile...</option>
+                        {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <button onClick={handleSaveProfile} className="text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 p-2 rounded-lg hover:bg-indigo-100 transition" title={t.saveProfile}>
+                       <Save className="w-4 h-4" />
+                    </button>
+                 </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2 flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
                    {contractor.logo ? (
@@ -1323,6 +1299,17 @@ const App: React.FC = () => {
             onDownloadPdf={(status) => handleDownloadFile('pdf', status)}
             onDownloadExcel={(status) => handleDownloadFile('excel', status)}
             previewText={generateBillText()}
+         />}
+         {isProfileModalOpen && <ProfileModal 
+            isOpen={isProfileModalOpen} 
+            onClose={() => setIsProfileModalOpen(false)}
+            user={user}
+            planDetails={getPlanDetails()}
+            onLogout={() => { logoutUser(); setUser(null); }}
+            onBackup={handleCloudBackup}
+            onRestore={handleCloudRestore}
+            onUpgrade={() => { setIsProfileModalOpen(false); setShowSubscription(true); }}
+            isSyncing={isSyncing}
          />}
       </Suspense>
     </div>
