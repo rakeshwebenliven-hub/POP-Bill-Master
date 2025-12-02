@@ -1566,6 +1566,7 @@ const App: React.FC = () => {
             onDownloadPdf={(status) => handleDownloadFile('pdf', status)}
             onDownloadExcel={(status) => handleDownloadFile('excel', status)}
             previewText={generateBillText()}
+            documentType={documentType}
          />}
          {isProfileModalOpen && <ProfileModal 
             isOpen={isProfileModalOpen} 

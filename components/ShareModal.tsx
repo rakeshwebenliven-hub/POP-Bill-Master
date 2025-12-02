@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { X, FileText, FileDown, Share2, Loader2, Download, CheckCircle2, Copy, Table } from 'lucide-react';
 import { APP_TEXT } from '../constants';
-import { PaymentStatus } from '../types';
+import { PaymentStatus, DocumentType } from '../types';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -13,6 +13,7 @@ interface ShareModalProps {
   onDownloadPdf: (status: PaymentStatus) => void;
   onDownloadExcel: (status: PaymentStatus) => void;
   previewText: string;
+  documentType: DocumentType;
 }
 
 const ShareModal: React.FC<ShareModalProps> = ({ 
@@ -23,7 +24,8 @@ const ShareModal: React.FC<ShareModalProps> = ({
   onShareExcel,
   onDownloadPdf,
   onDownloadExcel,
-  previewText 
+  previewText,
+  documentType
 }) => {
   const [sharingType, setSharingType] = useState<string | null>(null);
   const [status, setStatus] = useState<PaymentStatus>('Pending');
@@ -31,6 +33,9 @@ const ShareModal: React.FC<ShareModalProps> = ({
   const t = APP_TEXT;
 
   if (!isOpen) return null;
+
+  const isEstimate = documentType === 'estimate';
+  const modalTitle = isEstimate ? "Export Estimate / Quote" : "Export Invoice / Bill";
 
   const wrapShare = async (type: string, fn: (s: PaymentStatus) => Promise<void> | void) => {
     setSharingType(type);
@@ -62,10 +67,10 @@ const ShareModal: React.FC<ShareModalProps> = ({
         {/* Header */}
         <div className="px-5 py-3 flex justify-between items-center border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
-            <div className="bg-indigo-100 dark:bg-indigo-900/50 p-2 rounded-full">
-               <Share2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            <div className={`p-2 rounded-full ${isEstimate ? 'bg-amber-100 dark:bg-amber-900/50' : 'bg-indigo-100 dark:bg-indigo-900/50'}`}>
+               <Share2 className={`w-5 h-5 ${isEstimate ? 'text-amber-600 dark:text-amber-400' : 'text-indigo-600 dark:text-indigo-400'}`} />
             </div>
-            <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">Export Bill</h3>
+            <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">{modalTitle}</h3>
           </div>
           <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition">
             <X className="w-5 h-5 text-slate-500" />
@@ -74,24 +79,26 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
         <div className="p-5 space-y-6 max-h-[80vh] overflow-y-auto">
           
-          {/* Status Selection - Segmented Control Style */}
-          <div>
-             <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2 block ml-1">Bill Status</label>
-             <div className="grid grid-cols-2 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl">
-                <button 
-                  onClick={() => setStatus('Pending')}
-                  className={`py-2.5 rounded-xl text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 ${status === 'Pending' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm scale-[0.98]' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
-                >
-                   Unpaid (Due)
-                </button>
-                <button 
-                  onClick={() => setStatus('Paid')}
-                  className={`py-2.5 rounded-xl text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 ${status === 'Paid' ? 'bg-white dark:bg-slate-700 text-green-600 dark:text-green-400 shadow-sm scale-[0.98]' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
-                >
-                   Paid (Received) <CheckCircle2 className="w-4 h-4" />
-                </button>
-             </div>
-          </div>
+          {/* Status Selection - Hide for Estimates (Estimates are usually not "Paid" instantly) */}
+          {!isEstimate && (
+            <div>
+               <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2 block ml-1">Invoice Status</label>
+               <div className="grid grid-cols-2 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl">
+                  <button 
+                    onClick={() => setStatus('Pending')}
+                    className={`py-2.5 rounded-xl text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 ${status === 'Pending' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm scale-[0.98]' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
+                  >
+                     Unpaid (Due)
+                  </button>
+                  <button 
+                    onClick={() => setStatus('Paid')}
+                    className={`py-2.5 rounded-xl text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 ${status === 'Paid' ? 'bg-white dark:bg-slate-700 text-green-600 dark:text-green-400 shadow-sm scale-[0.98]' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
+                  >
+                     Paid (Received) <CheckCircle2 className="w-4 h-4" />
+                  </button>
+               </div>
+            </div>
+          )}
 
           {/* Primary Actions - Share Grid */}
           <div>
@@ -144,7 +151,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
                     onClick={() => wrapShare('text', onShareText)}
                     className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 transition"
                 >
-                    <Share2 className="w-4 h-4" /> Share Text Summary
+                    <Share2 className="w-4 h-4" /> Share Summary
                 </button>
                 <button 
                     onClick={handleCopy}
