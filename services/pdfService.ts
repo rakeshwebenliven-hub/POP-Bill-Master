@@ -1,7 +1,7 @@
 
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { BillItem, ClientDetails, ContractorDetails, PaymentStatus, PaymentRecord } from '../types';
+import { BillItem, ClientDetails, ContractorDetails, PaymentStatus, PaymentRecord, DocumentType } from '../types';
 
 export const generatePDF = (
   items: BillItem[],
@@ -15,6 +15,7 @@ export const generatePDF = (
   paymentStatus: PaymentStatus,
   totals: { subTotal: number, gst: number, grandTotal: number, balance: number, advance: number },
   billDate: string,
+  documentType: DocumentType = 'invoice',
   returnBlob: boolean = false
 ) => {
   const doc = new jsPDF();
@@ -22,7 +23,7 @@ export const generatePDF = (
   const pageHeight = doc.internal.pageSize.height;
   
   const formattedDate = billDate ? new Date(billDate).toLocaleDateString() : new Date().toLocaleDateString();
-  const primaryColor = [79, 70, 229] as [number, number, number];
+  const primaryColor = documentType === 'estimate' ? [217, 119, 6] : [79, 70, 229]; // Amber for Estimate, Indigo for Invoice (RGB)
 
   // Logic for Paid Status - Override based on selection
   const isPaid = paymentStatus === 'Paid';
@@ -41,7 +42,7 @@ export const generatePDF = (
   const leftMargin = contractor.logo ? 45 : 14;
   
   doc.setFontSize(22);
-  doc.setTextColor(...primaryColor);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   doc.setFont("helvetica", "bold");
   doc.text(contractor.companyName || contractor.name || "CONTRACTOR BILL", leftMargin, 25);
   
@@ -73,17 +74,21 @@ export const generatePDF = (
   doc.setFontSize(24);
   doc.setTextColor(200, 200, 200);
   doc.setFont("helvetica", "bold");
-  doc.text("INVOICE", pageWidth - 14, 25, { align: "right" });
+  const docTitle = documentType === 'estimate' ? "ESTIMATE / QUOTE" : "INVOICE";
+  doc.text(docTitle, pageWidth - 14, 25, { align: "right" });
 
   doc.setFontSize(10);
   doc.setTextColor(60, 60, 60);
   doc.setFont("helvetica", "normal");
   
-  doc.text(`Bill No: ${billNumber}`, pageWidth - 14, 35, { align: "right" });
-  doc.text(`Date: ${formattedDate}`, pageWidth - 14, 40, { align: "right" });
+  const noLabel = documentType === 'estimate' ? "Est. No:" : "Bill No:";
+  const dateLabel = documentType === 'estimate' ? "Est. Date:" : "Date:";
 
-  // Paid Status Stamp
-  if (isPaid) {
+  doc.text(`${noLabel} ${billNumber}`, pageWidth - 14, 35, { align: "right" });
+  doc.text(`${dateLabel} ${formattedDate}`, pageWidth - 14, 40, { align: "right" });
+
+  // Paid Status Stamp (Only for Invoices)
+  if (documentType === 'invoice' && isPaid) {
       doc.setTextColor(22, 163, 74); // Green
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
@@ -98,7 +103,7 @@ export const generatePDF = (
   doc.setFontSize(10);
   doc.setTextColor(100, 100, 100);
   doc.setFont("helvetica", "bold");
-  doc.text("BILL TO:", 14, yPos);
+  doc.text(documentType === 'estimate' ? "QUOTE FOR:" : "BILL TO:", 14, yPos);
   
   doc.setFontSize(12);
   doc.setTextColor(0, 0, 0);
@@ -114,11 +119,13 @@ export const generatePDF = (
   const hasFloor = items.some(item => item.floor && item.floor.trim() !== '');
   const simpleUnits = ['nos', 'pcs', 'kg', 'ton', 'lsum', 'point', 'hours', 'days', '%', 'bag', 'box', 'pkt', 'ltr', 'visit', 'month', 'kw', 'hp', 'set', 'quintal'];
   const hasDimensions = items.some(item => !simpleUnits.includes(item.unit));
+  // Check for volumetric items specifically to show Height
+  const hasHeight = items.some(item => ['cu.ft', 'cu.mt', 'brass'].includes(item.unit) && item.height && item.height > 0);
 
   const tableHeadRow = ['#'];
   if (hasFloor) tableHeadRow.push('Floor');
   tableHeadRow.push('Description');
-  if (hasDimensions) tableHeadRow.push('Size (LxWxH)');
+  if (hasDimensions) tableHeadRow.push(hasHeight ? 'Size (LxWxH)' : 'Size (LxW)');
   tableHeadRow.push('Qty', 'Unit', 'Total', 'Rate', 'Amount');
 
   const tableHead = [tableHeadRow];
@@ -238,46 +245,47 @@ export const generatePDF = (
   }
 
   doc.setFont("helvetica", "bold");
-  doc.text("Grand Total:", rightColX, finalY);
+  doc.text(documentType === 'estimate' ? "Estimated Total:" : "Grand Total:", rightColX, finalY);
   doc.text(totals.grandTotal.toFixed(2), valueX, finalY, { align: "right" });
   finalY += 8;
 
-  if (isPaid) {
-    // If PAID selected: Show Payment Received = Grand Total
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(22, 163, 74); 
-    doc.text("Payment Received:", rightColX, finalY);
-    doc.text(`-${totals.grandTotal.toFixed(2)}`, valueX, finalY, { align: "right" });
-    finalY += 8;
-  } else {
-    // If UNPAID/Pending: Show advances if any
-    if (payments.length > 0) {
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(22, 163, 74); 
-      
-      payments.forEach((payment) => {
-         const dateStr = payment.date ? new Date(payment.date).toLocaleDateString() : '';
-         const note = payment.notes ? `(${payment.notes})` : '';
-         const label = dateStr ? `Advance Received ${dateStr} ${note}:` : `Advance Received ${note}:`;
-         
-         let cleanLabel = label.length > 35 ? label.substring(0, 32) + '...' : label;
-         
-         doc.text(cleanLabel, rightColX, finalY);
-         doc.text(`-${payment.amount.toFixed(2)}`, valueX, finalY, { align: "right" });
-         finalY += 6;
-      });
-      finalY += 2;
-   }
+  // Payments logic only for INVOICES usually
+  if (documentType === 'invoice') {
+      if (isPaid) {
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(22, 163, 74); 
+        doc.text("Payment Received:", rightColX, finalY);
+        doc.text(`-${totals.grandTotal.toFixed(2)}`, valueX, finalY, { align: "right" });
+        finalY += 8;
+      } else {
+        if (payments.length > 0) {
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(22, 163, 74); 
+          
+          payments.forEach((payment) => {
+             const dateStr = payment.date ? new Date(payment.date).toLocaleDateString() : '';
+             const note = payment.notes ? `(${payment.notes})` : '';
+             const label = dateStr ? `Advance Received ${dateStr} ${note}:` : `Advance Received ${note}:`;
+             
+             let cleanLabel = label.length > 35 ? label.substring(0, 32) + '...' : label;
+             
+             doc.text(cleanLabel, rightColX, finalY);
+             doc.text(`-${payment.amount.toFixed(2)}`, valueX, finalY, { align: "right" });
+             finalY += 6;
+          });
+          finalY += 2;
+       }
+      }
+
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text("Balance Due:", rightColX, finalY);
+      doc.text(`INR ${displayBalance.toFixed(0)}`, valueX, finalY, { align: "right" });
   }
 
-  doc.setFontSize(14);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text("Balance Due:", rightColX, finalY);
-  doc.text(`INR ${displayBalance.toFixed(0)}`, valueX, finalY, { align: "right" });
-
-  let currentLeftY = finalY - (totals.advance > 0 && !isPaid ? (payments.length * 6) + 8 : 8) - (gstEnabled ? 6 : 0) - 6; 
-  if (isPaid) currentLeftY = finalY - 16; 
+  let currentLeftY = finalY - (totals.advance > 0 && !isPaid && documentType === 'invoice' ? (payments.length * 6) + 8 : 8) - (gstEnabled ? 6 : 0) - 6; 
+  if (isPaid && documentType === 'invoice') currentLeftY = finalY - 16; 
   currentLeftY = Math.max(currentLeftY, doc.lastAutoTable.finalY + 10);
   
   if (finalY < 100 && doc.internal.getNumberOfPages() > 1) {
@@ -385,10 +393,11 @@ export const generatePDF = (
   doc.text("Contractor Signature", pageWidth - 14, signY + 5, { align: "right" });
 
   const safeBillNum = (billNumber || 'Draft').replace(/[^a-z0-9]/gi, '_');
+  const fileName = `${documentType === 'invoice' ? 'Bill' : 'Estimate'}_${safeBillNum}.pdf`;
   
   if (returnBlob) {
     return doc.output('blob');
   } else {
-    doc.save(`Bill_${safeBillNum}.pdf`);
+    doc.save(fileName);
   }
 };

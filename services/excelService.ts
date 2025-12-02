@@ -1,6 +1,6 @@
 
 import * as XLSX from 'xlsx';
-import { BillItem, ClientDetails, ContractorDetails, PaymentStatus, PaymentRecord } from '../types';
+import { BillItem, ClientDetails, ContractorDetails, PaymentStatus, PaymentRecord, DocumentType } from '../types';
 
 export const generateExcel = (
   items: BillItem[],
@@ -13,16 +13,20 @@ export const generateExcel = (
   billNumber: string,
   paymentStatus: PaymentStatus,
   billDate: string,
+  documentType: DocumentType = 'invoice',
   returnBlob: boolean = false
 ) => {
   const formattedDate = billDate ? new Date(billDate).toLocaleDateString() : new Date().toLocaleDateString();
   const isPaid = paymentStatus === 'Paid';
+  const docTitle = documentType === 'estimate' ? "ESTIMATE / QUOTE" : "CONTRACTOR BILL / INVOICE";
+  const noLabel = documentType === 'estimate' ? "Est. No:" : "Bill No:";
+  const dateLabel = documentType === 'estimate' ? "Est. Date:" : "Date:";
 
   const headerData = [
-    ["CONTRACTOR BILL / INVOICE"],
+    [docTitle],
     [],
-    ["Bill No:", billNumber],
-    ["Date:", formattedDate],
+    [noLabel, billNumber],
+    [dateLabel, formattedDate],
     [],
     ["Contractor:", contractor.name],
     ["Firm:", contractor.companyName],
@@ -146,40 +150,43 @@ export const generateExcel = (
     );
   }
 
+  const grandTotalLabel = documentType === 'estimate' ? "Estimated Total:" : "Grand Total:";
   smartFooter.push(
-    [...footerPadding, "Grand Total:", grandTotal.toFixed(2)]
+    [...footerPadding, grandTotalLabel, grandTotal.toFixed(2)]
   );
 
-  if (isPaid) {
-     smartFooter.push(
-       [...footerPadding, "Payment Received:", `-${grandTotal.toFixed(2)}`]
-     );
-  } else {
-      if (payments.length > 0) {
-        payments.forEach(payment => {
-          const dateStr = payment.date ? `(${new Date(payment.date).toLocaleDateString()})` : '';
-          const note = payment.notes ? `(${payment.notes})` : '';
-          const label = `Advance ${dateStr} ${note}:`;
-          
-          smartFooter.push(
-            [...footerPadding, label, `-${payment.amount.toFixed(2)}`]
-          );
-        });
+  if (documentType === 'invoice') {
+      if (isPaid) {
+         smartFooter.push(
+           [...footerPadding, "Payment Received:", `-${grandTotal.toFixed(2)}`]
+         );
+      } else {
+          if (payments.length > 0) {
+            payments.forEach(payment => {
+              const dateStr = payment.date ? `(${new Date(payment.date).toLocaleDateString()})` : '';
+              const note = payment.notes ? `(${payment.notes})` : '';
+              const label = `Advance ${dateStr} ${note}:`;
+              
+              smartFooter.push(
+                [...footerPadding, label, `-${payment.amount.toFixed(2)}`]
+              );
+            });
 
-        if (payments.length > 1) {
-          smartFooter.push(
-            [...footerPadding, "Total Advance:", `-${totalAdvance.toFixed(2)}`]
-          );
-        }
+            if (payments.length > 1) {
+              smartFooter.push(
+                [...footerPadding, "Total Advance:", `-${totalAdvance.toFixed(2)}`]
+              );
+            }
+          }
       }
-  }
 
-  smartFooter.push(
-    [...footerPadding, "Balance Due:", balanceDue.toFixed(2)]
-  );
+      smartFooter.push(
+        [...footerPadding, "Balance Due:", balanceDue.toFixed(2)]
+      );
 
-  if (isPaid) {
-      smartFooter.push([], [...footerPadding, "*** PAID ***", ""]);
+      if (isPaid) {
+          smartFooter.push([], [...footerPadding, "*** PAID ***", ""]);
+      }
   }
 
   if (contractor.bankDetails) {
@@ -240,7 +247,7 @@ export const generateExcel = (
     return new Blob([wbout], { type: 'application/octet-stream' });
   } else {
     const safeBillNum = (billNumber || 'Draft').replace(/[^a-z0-9]/gi, '_');
-    const fileName = `Bill_${safeBillNum}.xlsx`;
+    const fileName = `${documentType === 'invoice' ? 'Bill' : 'Estimate'}_${safeBillNum}.xlsx`;
     XLSX.writeFile(wb, fileName);
   }
 };

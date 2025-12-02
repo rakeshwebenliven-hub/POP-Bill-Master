@@ -837,10 +837,10 @@ const App: React.FC = () => {
 
       if (type === 'pdf') {
           // @ts-ignore
-          blob = generatePDF(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, true);
+          blob = generatePDF(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, documentType, true);
       } else {
           // @ts-ignore
-          blob = generateExcel(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, billDate, true);
+          blob = generateExcel(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, billDate, documentType, true);
       }
 
       if (navigator.canShare && navigator.canShare({ files: [new File([blob], fileName, { type: blob.type })] })) {
@@ -866,9 +866,9 @@ const App: React.FC = () => {
 
   const handleDownloadFile = (type: 'pdf' | 'excel', status: PaymentStatus) => {
       if (type === 'pdf') {
-          generatePDF(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, false);
+          generatePDF(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, documentType, false);
       } else {
-          generateExcel(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, billDate, false);
+          generateExcel(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, billDate, documentType, false);
       }
       setIsShareModalOpen(false);
   };
@@ -906,7 +906,9 @@ const App: React.FC = () => {
          safeBillNum,
          bill.paymentStatus || 'Pending',
          { subTotal, gst, grandTotal, balance, advance },
-         bill.billDate || new Date(bill.timestamp).toISOString().split('T')[0]
+         bill.billDate || new Date(bill.timestamp).toISOString().split('T')[0],
+         bill.type || 'invoice',
+         false
       );
   };
 
@@ -932,7 +934,9 @@ const App: React.FC = () => {
          bill.disclaimer || '',
          safeBillNum,
          bill.paymentStatus || 'Pending',
-         bill.billDate || new Date(bill.timestamp).toISOString().split('T')[0]
+         bill.billDate || new Date(bill.timestamp).toISOString().split('T')[0],
+         bill.type || 'invoice',
+         false
       );
   };
 
