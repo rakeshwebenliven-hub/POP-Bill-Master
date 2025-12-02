@@ -644,11 +644,22 @@ const App: React.FC = () => {
      }
   };
 
+  const handleNewContractorProfile = () => {
+      setContractor({
+        name: '', companyName: '', gstin: '', phone: '', email: '', website: '', socialLinks: [], accountDetails: '', 
+        bankDetails: { holderName: '', bankName: '', accountNumber: '', ifscCode: '', upiId: '', branchAddress: '' },
+        logo: '', upiQrCode: ''
+      });
+      setSelectedProfileId('');
+      showToast("Form cleared for new profile");
+  };
+
   const handleDeleteProfile = (id: string) => {
      if(window.confirm(t.confirmDelete)) {
         deleteProfile(id);
         setProfiles(prev => prev.filter(p => p.id !== id));
         if (selectedProfileId === id) setSelectedProfileId('');
+        showToast("Profile deleted");
      }
   };
 
@@ -673,11 +684,18 @@ const App: React.FC = () => {
      }
   };
 
+  const handleNewClientProfile = () => {
+      setClient({ name: '', phone: '', address: '' });
+      setSelectedClientId('');
+      showToast("Form cleared for new client");
+  };
+
   const handleDeleteClientProfile = (id: string) => {
      if(window.confirm(t.confirmDelete)) {
         deleteClientProfile(id);
         setClientProfiles(prev => prev.filter(p => p.id !== id));
         if (selectedClientId === id) setSelectedClientId('');
+        showToast("Client deleted");
      }
   };
 
@@ -988,19 +1006,30 @@ const App: React.FC = () => {
                  <h2 className="text-lg font-bold flex items-center gap-2">
                    <div className="bg-indigo-100 dark:bg-indigo-900/30 p-1.5 rounded-lg"><User className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /></div> {t.contractorDetails}
                  </h2>
-                 {/* Saved Profiles Dropdown moved here */}
+                 {/* Saved Profiles Toolbar */}
                  <div className="flex gap-2 items-center">
                     <select 
-                       className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm rounded-lg p-1.5 outline-none max-w-[120px] sm:max-w-[180px] dark:text-white"
+                       className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm rounded-lg p-1.5 outline-none max-w-[100px] sm:max-w-[160px] dark:text-white"
                        value={selectedProfileId} 
                        onChange={(e) => handleLoadProfile(e.target.value)}
                     >
                         <option value="">Load Profile...</option>
                         {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
-                    <button onClick={handleSaveProfile} className="text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 p-2 rounded-lg hover:bg-indigo-100 transition" title={t.saveProfile}>
+                    
+                    <button onClick={handleNewContractorProfile} className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition active:scale-95" title="New / Clear">
+                       <FilePlus className="w-4 h-4" />
+                    </button>
+
+                    <button onClick={handleSaveProfile} className="text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 p-2 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition active:scale-95" title={t.saveProfile}>
                        <Save className="w-4 h-4" />
                     </button>
+
+                    {selectedProfileId && (
+                      <button onClick={() => handleDeleteProfile(selectedProfileId)} className="text-xs bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400 p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition active:scale-95" title="Delete Profile">
+                         <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                  </div>
               </div>
 
@@ -1075,19 +1104,30 @@ const App: React.FC = () => {
                  <h2 className="text-lg font-bold flex items-center gap-2">
                    <div className="bg-indigo-100 dark:bg-indigo-900/30 p-1.5 rounded-lg"><Users className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /></div> {t.clientDetails}
                  </h2>
-                 {/* Saved Client Profiles Dropdown */}
+                 {/* Saved Client Profiles Toolbar */}
                  <div className="flex gap-2 items-center">
                     <select 
-                       className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm rounded-lg p-1.5 outline-none max-w-[120px] sm:max-w-[180px] dark:text-white"
+                       className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm rounded-lg p-1.5 outline-none max-w-[100px] sm:max-w-[160px] dark:text-white"
                        value={selectedClientId} 
                        onChange={(e) => handleLoadClientProfile(e.target.value)}
                     >
                         <option value="">Load Client...</option>
                         {clientProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
-                    <button onClick={handleSaveClientProfile} className="text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 p-2 rounded-lg hover:bg-indigo-100 transition" title={t.saveClient}>
+
+                    <button onClick={handleNewClientProfile} className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition active:scale-95" title="New / Clear">
+                       <FilePlus className="w-4 h-4" />
+                    </button>
+
+                    <button onClick={handleSaveClientProfile} className="text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 p-2 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition active:scale-95" title={t.saveClient}>
                        <Save className="w-4 h-4" />
                     </button>
+
+                    {selectedClientId && (
+                      <button onClick={() => handleDeleteClientProfile(selectedClientId)} className="text-xs bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400 p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition active:scale-95" title="Delete Client">
+                         <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                  </div>
               </div>
 
