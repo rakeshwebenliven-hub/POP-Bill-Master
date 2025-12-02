@@ -1537,16 +1537,18 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* --- BOTTOM ACTION BAR --- */}
+      {/* --- BOTTOM ACTION BAR (Redesigned for CTA Focus) --- */}
       <div className="fixed bottom-0 left-0 right-0 glass-panel z-40 safe-area-bottom pb-4 sm:pb-3 shadow-[0_-8px_30px_rgba(0,0,0,0.1)]">
          <div className="max-w-4xl mx-auto px-4 py-3 grid grid-cols-2 gap-3">
+            {/* Primary Action: Share/Export (Contractor's Main Goal) */}
             <button 
                 onClick={() => setIsShareModalOpen(true)} 
-                className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-bold bg-indigo-600 dark:bg-indigo-600 text-white hover:bg-indigo-700 dark:hover:bg-indigo-700 transition active:scale-95 shadow-lg shadow-indigo-200 dark:shadow-none text-sm border-0" 
+                className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-bold bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:shadow-xl transition active:scale-95 shadow-lg shadow-indigo-200 dark:shadow-none text-sm border-0" 
                 disabled={items.length === 0}
             >
                 <Share2 className="w-4 h-4" /> Export / Share
             </button>
+            {/* Secondary Action: Save */}
             <button 
                 onClick={handleSaveBill} 
                 className={`flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 transition active:scale-95 text-sm shadow-sm`}

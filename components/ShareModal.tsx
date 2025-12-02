@@ -100,17 +100,17 @@ const ShareModal: React.FC<ShareModalProps> = ({
             </div>
           )}
 
-          {/* WhatsApp / Text Share */}
-          <div className="pt-2">
+          {/* WhatsApp / Text Share - PRIMARY CTA for Indian Market */}
+          <div className="pt-1">
              <button 
                 onClick={() => wrapShare('text', onShareText)}
-                className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-green-600 hover:bg-green-700 text-white font-bold text-lg active:scale-95 transition shadow-lg shadow-green-200 dark:shadow-none"
+                className="w-full flex items-center justify-center gap-3 p-4 rounded-2xl bg-green-600 hover:bg-green-700 text-white font-bold text-lg active:scale-95 transition shadow-lg shadow-green-200 dark:shadow-none"
              >
-                <MessageCircle className="w-6 h-6" /> WhatsApp / Text Summary
+                <MessageCircle className="w-6 h-6 fill-white text-white" /> WhatsApp / Text Summary
              </button>
           </div>
 
-          {/* Primary Actions - Share Grid */}
+          {/* Secondary Actions - Share Files */}
           <div>
              <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2 block ml-1">Share File</label>
              <div className="grid grid-cols-2 gap-3">
@@ -134,7 +134,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
              </div>
           </div>
 
-          {/* Secondary Actions - Download Grid */}
+          {/* Tertiary Actions - Download to Device */}
           <div>
              <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2 block ml-1">Download to Device</label>
              <div className="grid grid-cols-2 gap-3">
