@@ -572,6 +572,12 @@ const App: React.FC = () => {
      showToast("Expense added");
   };
 
+  // NEW: Handle replacing all expenses (for flat rate feature)
+  const handleSetExpenses = (newExpenses: ExpenseRecord[]) => {
+     setExpenses(newExpenses);
+     showToast("Expenses updated");
+  };
+
   const handleDeleteExpense = (id: string) => {
      setExpenses(prev => prev.filter(e => e.id !== id));
   };
@@ -1604,6 +1610,7 @@ const App: React.FC = () => {
             expenses={expenses}
             onAddExpense={handleAddExpense}
             onDeleteExpense={handleDeleteExpense}
+            onSetExpenses={handleSetExpenses}
             billTotal={totals.grandTotal}
          />}
          {isDashboardModalOpen && <DashboardModal 

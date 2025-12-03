@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Wallet, TrendingUp, TrendingDown } from 'lucide-react';
+import { X, Plus, Trash2, Wallet, TrendingUp, AlertTriangle, List, GripHorizontal } from 'lucide-react';
 import { ExpenseRecord } from '../types';
 import { EXPENSE_CATEGORIES } from '../constants';
 
@@ -10,7 +10,8 @@ interface ExpensesModalProps {
   expenses: ExpenseRecord[];
   onAddExpense: (expense: ExpenseRecord) => void;
   onDeleteExpense: (id: string) => void;
-  billTotal: number; // To calculate profit
+  onSetExpenses: (expenses: ExpenseRecord[]) => void; // New prop for replacing all
+  billTotal: number;
 }
 
 const ExpensesModal: React.FC<ExpensesModalProps> = ({ 
@@ -19,12 +20,20 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({
   expenses, 
   onAddExpense, 
   onDeleteExpense,
+  onSetExpenses,
   billTotal
 }) => {
+  const [activeTab, setActiveTab] = useState<'detailed' | 'flat'>('detailed');
+  
+  // Detailed State
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0]);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Flat State
+  const [flatAmount, setFlatAmount] = useState('');
+  const [flatNote, setFlatNote] = useState('');
 
   if (!isOpen) return null;
 
@@ -47,6 +56,28 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({
     onAddExpense(newExpense);
     setDescription('');
     setAmount('');
+  };
+
+  const handleSetFlatExpense = () => {
+      const val = parseFloat(flatAmount);
+      if (!val || val < 0) return;
+
+      if (expenses.length > 0 && !window.confirm("This will replace your existing individual expenses with one single total. Continue?")) {
+          return;
+      }
+
+      const flatExpense: ExpenseRecord = {
+          id: Date.now().toString(),
+          category: 'Total Project Cost',
+          description: flatNote || 'Lump Sum Expense',
+          amount: val,
+          date: new Date().toISOString().split('T')[0]
+      };
+
+      onSetExpenses([flatExpense]);
+      setFlatAmount('');
+      setFlatNote('');
+      // Optionally switch tab to verify or show success toast (handled by parent)
   };
 
   return (
@@ -84,44 +115,102 @@ const ExpensesModal: React.FC<ExpensesModalProps> = ({
               </div>
            </div>
 
-           {/* Add Expense Form */}
-           <div className="mb-6 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
-              <h4 className="font-bold text-sm text-slate-700 dark:text-slate-300">Add New Expense</h4>
-              <div className="grid grid-cols-2 gap-3">
-                 <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-2.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 outline-none">
-                    {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                 </select>
-                 <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full p-2.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 outline-none" />
-              </div>
-              <input type="text" placeholder="Description (e.g. 50 Bags Cement)" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full p-2.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 outline-none" />
-              <div className="flex gap-3">
-                 <input type="number" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} className="flex-1 p-2.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 outline-none font-bold" />
-                 <button onClick={handleAdd} className="bg-slate-900 dark:bg-indigo-600 text-white px-4 rounded-xl hover:bg-slate-800 dark:hover:bg-indigo-700 transition shadow-lg active:scale-95"><Plus className="w-5 h-5" /></button>
-              </div>
+           {/* Tab Switcher */}
+           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-6">
+              <button 
+                onClick={() => setActiveTab('detailed')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'detailed' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+              >
+                 <List className="w-3.5 h-3.5" /> Detailed List
+              </button>
+              <button 
+                onClick={() => setActiveTab('flat')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'flat' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+              >
+                 <GripHorizontal className="w-3.5 h-3.5" /> Single Total
+              </button>
            </div>
 
-           {/* Expenses List */}
-           <div>
-              <h4 className="font-bold text-sm text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wide">Expense History</h4>
-              {expenses.length === 0 ? (
-                 <div className="text-center py-8 text-slate-400 text-sm italic border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-xl">No expenses recorded yet.</div>
-              ) : (
-                 <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {expenses.map(exp => (
-                       <div key={exp.id} className="flex justify-between items-center p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                          <div>
-                             <div className="font-bold text-slate-800 dark:text-slate-200 text-sm">{exp.category}</div>
-                             <div className="text-xs text-slate-500 dark:text-slate-400">{exp.description} <span className="opacity-50">• {new Date(exp.date).toLocaleDateString()}</span></div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                             <span className="font-bold text-red-600 dark:text-red-400">₹{exp.amount}</span>
-                             <button onClick={() => onDeleteExpense(exp.id)} className="text-slate-400 hover:text-red-500 transition"><Trash2 className="w-4 h-4" /></button>
-                          </div>
+           {activeTab === 'detailed' ? (
+               <>
+                {/* Add Detailed Expense Form */}
+                <div className="mb-6 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
+                    <h4 className="font-bold text-sm text-slate-700 dark:text-slate-300">Add Item Expense</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                        <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-2.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 outline-none">
+                            {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full p-2.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 outline-none" />
+                    </div>
+                    <input type="text" placeholder="Description (e.g. 50 Bags Cement)" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full p-2.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 outline-none" />
+                    <div className="flex gap-3">
+                        <input type="number" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} className="flex-1 p-2.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 outline-none font-bold" />
+                        <button onClick={handleAdd} className="bg-slate-900 dark:bg-indigo-600 text-white px-4 rounded-xl hover:bg-slate-800 dark:hover:bg-indigo-700 transition shadow-lg active:scale-95"><Plus className="w-5 h-5" /></button>
+                    </div>
+                </div>
+
+                {/* Expenses List */}
+                <div>
+                    <h4 className="font-bold text-sm text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wide">Expense History</h4>
+                    {expenses.length === 0 ? (
+                        <div className="text-center py-8 text-slate-400 text-sm italic border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-xl">No expenses recorded yet.</div>
+                    ) : (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {expenses.map(exp => (
+                            <div key={exp.id} className="flex justify-between items-center p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <div>
+                                    <div className="font-bold text-slate-800 dark:text-slate-200 text-sm">{exp.category}</div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400">{exp.description} <span className="opacity-50">• {new Date(exp.date).toLocaleDateString()}</span></div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="font-bold text-red-600 dark:text-red-400">₹{exp.amount}</span>
+                                    <button onClick={() => onDeleteExpense(exp.id)} className="text-slate-400 hover:text-red-500 transition"><Trash2 className="w-4 h-4" /></button>
+                                </div>
+                            </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+               </>
+           ) : (
+               // Flat Expense Form
+               <div className="space-y-4">
+                   <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex items-start gap-2">
+                       <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                       <p>Note: Adding a single total expense will replace and clear any existing detailed expense items for this bill.</p>
+                   </div>
+
+                   <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
+                       <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">Total Bill Cost (Lump Sum)</label>
+                       <div className="relative mb-4">
+                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg">₹</span>
+                           <input 
+                             type="number" 
+                             className="w-full pl-10 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xl font-bold outline-none focus:border-indigo-500 dark:text-white"
+                             placeholder="0.00"
+                             value={flatAmount}
+                             onChange={(e) => setFlatAmount(e.target.value)}
+                           />
                        </div>
-                    ))}
-                 </div>
-              )}
-           </div>
+                       
+                       <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase">Note (Optional)</label>
+                       <input 
+                         type="text"
+                         className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm outline-none mb-6"
+                         placeholder="e.g. All inclusive project cost"
+                         value={flatNote}
+                         onChange={(e) => setFlatNote(e.target.value)}
+                       />
+
+                       <button 
+                         onClick={handleSetFlatExpense}
+                         className="w-full bg-slate-900 dark:bg-indigo-600 text-white py-3.5 rounded-xl font-bold shadow-lg hover:bg-slate-800 dark:hover:bg-indigo-700 transition active:scale-95"
+                       >
+                           Set Total Expense
+                       </button>
+                   </div>
+               </div>
+           )}
 
         </div>
       </div>
