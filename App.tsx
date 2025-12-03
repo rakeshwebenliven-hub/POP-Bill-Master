@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, LayoutList, Contact, FileCheck, Wallet, PieChart, ChevronLeft, Menu, Settings, Check, ArrowRight, Home, ChevronDown, ChevronUp } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile, ClientProfile, DocumentType, EstimateStatus, ExpenseRecord } from './types';
@@ -804,10 +803,27 @@ const App: React.FC = () => {
                 {/* STEP 1: PARTIES */}
                 {createStep === 'parties' && (
                    <div className="space-y-4 animate-slide-up">
-                      {/* Doc Type Toggle */}
-                      <div className="flex p-1 bg-slate-200 dark:bg-slate-800 rounded-xl">
-                        <button onClick={() => setDocumentType('invoice')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${documentType === 'invoice' ? 'bg-white dark:bg-slate-700 shadow' : 'text-slate-500'}`}>{t.modeInvoice}</button>
-                        <button onClick={() => setDocumentType('estimate')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${documentType === 'estimate' ? 'bg-white dark:bg-slate-700 shadow text-amber-600' : 'text-slate-500'}`}>{t.modeEstimate}</button>
+                      {/* Doc Type Selection Dropdown */}
+                      <div className="relative">
+                        <select
+                          value={documentType}
+                          onChange={(e) => setDocumentType(e.target.value as DocumentType)}
+                          className={`w-full appearance-none p-4 rounded-xl border-2 font-bold text-lg outline-none transition-all cursor-pointer ${
+                            documentType === 'estimate' 
+                              ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200' 
+                              : 'bg-white dark:bg-slate-800 border-indigo-100 dark:border-slate-700 text-indigo-800 dark:text-indigo-200'
+                          }`}
+                        >
+                          <option value="invoice">Tax Invoice / Bill</option>
+                          <option value="estimate">Estimate / Quote</option>
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-2">
+                          {documentType === 'estimate' 
+                            ? <FilePlus className="w-5 h-5 text-amber-600 dark:text-amber-400" /> 
+                            : <FileText className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                          }
+                          <ChevronDown className={`w-4 h-4 ${documentType === 'estimate' ? 'text-amber-400' : 'text-slate-400'}`} />
+                        </div>
                       </div>
 
                       <div className="card p-4 space-y-3">
