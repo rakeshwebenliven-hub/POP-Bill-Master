@@ -1290,13 +1290,25 @@ const App: React.FC = () => {
               <div><label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Site Address</label><input type="text" value={client.address} onChange={e => setClient({...client, address: e.target.value})} className="input-field" /></div>
             </div>
             
-            <div className="flex flex-col-reverse sm:flex-row justify-between items-center pt-4 gap-4">
-               <button 
-                 onClick={() => setIsExpensesModalOpen(true)} 
-                 className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 font-bold text-sm transition py-3 px-4 hover:bg-slate-100 dark:hover:bg-slate-800/50 rounded-xl w-full sm:w-auto justify-center sm:justify-start"
-               >
-                  <Wallet className="w-5 h-5" /> Manage Expenses
-               </button>
+            {/* Project Expenses Section */}
+            <div className="card p-4 sm:p-5 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
+                <div>
+                    <h3 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-2">
+                        <Wallet className="w-4 h-4 text-indigo-500" /> Project Expenses
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Add overall costs (e.g. Transport, Lump Sum)
+                    </p>
+                </div>
+                <button 
+                    onClick={() => setIsExpensesModalOpen(true)}
+                    className="py-2.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition flex items-center gap-2 active:scale-95"
+                >
+                    <Plus className="w-4 h-4" /> Add Expenses
+                </button>
+            </div>
+
+            <div className="flex justify-end pt-4">
                <button onClick={validateAndSwitchToItems} className="w-full sm:w-auto btn-primary py-3.5 px-8 flex items-center justify-center gap-2 text-base font-bold shadow-xl shadow-indigo-200 dark:shadow-none">
                   Next: Add Items <ChevronRight className="w-5 h-5" />
                </button>
