@@ -62,53 +62,69 @@ const SwipeableItem: React.FC<SwipeableItemProps> = ({
   };
 
   return (
-    <div className="relative overflow-hidden mb-0">
-      <div className="absolute inset-0 bg-red-500 flex items-center justify-end px-6 rounded-none sm:rounded-lg">
+    <div className="relative overflow-hidden mb-2">
+      {/* Swipe Background (Red) */}
+      <div className="absolute inset-0 bg-red-500 flex items-center justify-end px-6 rounded-xl">
         <Trash2 className="w-6 h-6 text-white" />
       </div>
 
       <div 
-        className={`relative bg-white dark:bg-slate-900 p-4 border-b sm:border border-slate-100 dark:border-slate-800 sm:rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex justify-between items-start group ${isSwiping ? '' : 'transition-transform duration-300'}`}
+        className={`relative bg-white dark:bg-slate-900 p-4 border border-slate-100 dark:border-slate-800 rounded-xl shadow-sm flex justify-between items-center group ${isSwiping ? '' : 'transition-transform duration-300'}`}
         style={{ transform: `translateX(${offsetX}px)` }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-          <div className="flex gap-4 w-full">
+          <div className="flex gap-3 w-full items-start">
+              {/* Index Number */}
+              <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0 mt-1">
+                 {index + 1}
+              </div>
+
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 flex-wrap mb-1">
                   <span>{item.description}</span>
                   {item.floor && <span className="text-[10px] uppercase font-bold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded tracking-wide">{item.floor}</span>}
                 </div>
                 <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-slate-700 dark:text-slate-300">
+                  {/* Smart Dimensions Display */}
+                  <span className="font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                     {['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(item.unit) && (
-                        <span>{item.length} x {item.width} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * item.width * (item.quantity || 1)).toFixed(2)}</span></span>
+                        <span>{item.length} <span className="text-slate-400">x</span> {item.width}</span>
                     )}
-                    {['cu.ft', 'cu.mt'].includes(item.unit) && (
-                        <span>{item.length}x{item.width}x{item.height} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * item.width * (item.height || 0) * (item.quantity || 1)).toFixed(2)}</span></span>
-                    )}
-                    {item.unit === 'brass' && (
-                        <span>{item.length}x{item.width}x{item.height} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} / 100 = <span className="font-bold">{((item.length * item.width * (item.height || 0) * (item.quantity || 1)) / 100).toFixed(2)}</span></span>
+                    {['cu.ft', 'cu.mt', 'brass'].includes(item.unit) && (
+                        <span>{item.length}<span className="text-slate-400">x</span>{item.width}<span className="text-slate-400">x</span>{item.height}</span>
                     )}
                     {['rft', 'r.mt'].includes(item.unit) && (
-                        <span>{item.length} {item.quantity > 1 && <span className="text-indigo-600 dark:text-indigo-400 font-bold">x {item.quantity}</span>} = <span className="font-bold">{(item.length * (item.quantity || 1)).toFixed(2)}</span></span>
+                        <span>{item.length} <span className="text-[10px] text-slate-400">LEN</span></span>
                     )}
                     {!['sq.ft', 'sq.mt', 'sq.yd', 'acre', 'cu.ft', 'cu.mt', 'brass', 'rft', 'r.mt'].includes(item.unit) && (
-                        <span>{item.quantity}</span>
+                        <span>{item.quantity} <span className="text-[10px] text-slate-400 uppercase">{item.unit}</span></span>
                     )}
                   </span>
-                  <span className="text-xs uppercase bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500">{item.unit}</span>
-                  <span className="text-slate-300 dark:text-slate-600">|</span>
-                  <span className="font-medium">@{item.rate}</span>
+                  
+                  {/* Quantity Badge if > 1 */}
+                  {item.quantity > 1 && ['sq.ft', 'sq.mt', 'sq.yd', 'acre', 'cu.ft', 'cu.mt', 'brass', 'rft', 'r.mt'].includes(item.unit) && (
+                      <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">x {item.quantity}</span>
+                  )}
+
+                  {/* Rate Badge */}
+                  <span className="text-xs font-medium text-slate-500">@ {item.rate}</span>
                 </div>
               </div>
           </div>
-          <div className="text-right pl-2">
-              <div className="font-bold text-slate-900 dark:text-white text-lg tracking-tight">₹{item.amount.toFixed(0)}</div>
-              <div className="flex justify-end gap-2 mt-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                <button onClick={() => onEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/30 rounded-lg transition"><Pencil className="w-4 h-4" /></button>
-                <button onClick={() => onDelete(item.id)} className="p-2 text-red-500 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
+
+          <div className="text-right flex flex-col items-end gap-1">
+              <div className="font-extrabold text-slate-900 dark:text-white text-lg tracking-tight">₹{item.amount.toFixed(0)}</div>
+              
+              {/* Explicit Action Buttons for Non-Gesture Users */}
+              <div className="flex gap-1">
+                <button onClick={() => onEdit(item)} className="p-2 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 transition">
+                    <Pencil className="w-4 h-4" />
+                </button>
+                <button onClick={() => onDelete(item.id)} className="p-2 text-red-500 bg-red-50 dark:bg-red-900/30 dark:text-red-400 rounded-lg hover:bg-red-100 transition">
+                    <Trash2 className="w-4 h-4" />
+                </button>
               </div>
           </div>
       </div>
@@ -888,11 +904,11 @@ const App: React.FC = () => {
                                         <span className="text-lg">₹{calculateAmount(currentItem.length || 0, currentItem.width || 0, currentItem.height || 0, currentItem.quantity || 1, currentItem.rate || 0, currentItem.unit || 'sq.ft').toFixed(0)}</span>
                                      </div>
                                   </div>
-                               </div>
+                                </div>
                                
                                <div className="flex gap-2">
-                                  <button onClick={() => setIsVoiceModalOpen(true)} className="flex-1 py-3 bg-indigo-50 text-indigo-600 rounded-xl font-bold flex items-center justify-center gap-2"><Mic className="w-4 h-4" /> Voice</button>
-                                  <button onClick={handleAddItem} disabled={!currentItem.description || !currentItem.rate} className="flex-[2] btn-primary py-3 flex items-center justify-center gap-2">{editingId ? 'Update' : 'Add Item'} <Plus className="w-4 h-4" /></button>
+                                  <button onClick={() => setIsVoiceModalOpen(true)} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 dark:shadow-none animate-pulse hover:animate-none active:scale-95 transition"><Mic className="w-5 h-5" /> TAP TO SPEAK</button>
+                                  <button onClick={handleAddItem} disabled={!currentItem.description || !currentItem.rate} className="flex-[2] btn-primary py-3 flex items-center justify-center gap-2">{editingId ? 'Update' : 'Add'} <Plus className="w-5 h-5" /></button>
                                </div>
                             </div>
                          )}
@@ -903,7 +919,7 @@ const App: React.FC = () => {
                          {filteredItems.map((item, idx) => (
                             <SwipeableItem key={item.id} item={item} index={idx} onDelete={handleRemoveItem} onEdit={handleEditItem} />
                          ))}
-                         {items.length === 0 && <div className="text-center py-10 text-slate-400 text-sm">Add your first item above.</div>}
+                         {items.length === 0 && <div className="text-center py-10 text-slate-400 text-sm font-medium">No items yet.<br/>Tap the Mic or Add button above.</div>}
                       </div>
 
                       <button onClick={() => validateAndNext('summary')} disabled={items.length === 0} className="w-full btn-primary py-4 text-lg shadow-xl flex items-center justify-center gap-2 mt-4 disabled:opacity-50">Next: Summary <ArrowRight className="w-5 h-5" /></button>
