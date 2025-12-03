@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, LayoutList, Contact, FileCheck, Wallet, PieChart } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile, ClientProfile, DocumentType, EstimateStatus, ExpenseRecord } from './types';
@@ -1291,8 +1290,16 @@ const App: React.FC = () => {
               <div><label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">Site Address</label><input type="text" value={client.address} onChange={e => setClient({...client, address: e.target.value})} className="input-field" /></div>
             </div>
             
-            <div className="flex justify-end pt-4">
-               <button onClick={validateAndSwitchToItems} className="btn-primary py-3 px-6 flex items-center gap-2 text-base font-bold">Next: Add Items <ChevronRight className="w-4 h-4" /></button>
+            <div className="flex flex-col-reverse sm:flex-row justify-between items-center pt-4 gap-4">
+               <button 
+                 onClick={() => setIsExpensesModalOpen(true)} 
+                 className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 font-bold text-sm transition py-3 px-4 hover:bg-slate-100 dark:hover:bg-slate-800/50 rounded-xl w-full sm:w-auto justify-center sm:justify-start"
+               >
+                  <Wallet className="w-5 h-5" /> Manage Expenses
+               </button>
+               <button onClick={validateAndSwitchToItems} className="w-full sm:w-auto btn-primary py-3.5 px-8 flex items-center justify-center gap-2 text-base font-bold shadow-xl shadow-indigo-200 dark:shadow-none">
+                  Next: Add Items <ChevronRight className="w-5 h-5" />
+               </button>
             </div>
           </div>
         )}
