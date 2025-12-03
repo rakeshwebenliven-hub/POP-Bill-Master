@@ -1,3 +1,4 @@
+
 import { SubscriptionPlan } from './types';
 
 export const EXPENSE_CATEGORIES = [
@@ -14,9 +15,14 @@ export const EXPENSE_CATEGORIES = [
 
 export const APP_TEXT = {
   // General & Navigation
-  contractorDetails: "My Business Details",
-  clientDetails: "Client Details",
-  addItem: "Add Item",
+  contractorDetails: "My Business",
+  clientDetails: "Client",
+  addItem: "Items",
+  
+  // Tabs / Steps
+  stepParties: "Parties",
+  stepItems: "Items",
+  stepSummary: "Summary",
   
   // Document Types & Fields
   modeInvoice: "Tax Invoice",
@@ -30,25 +36,25 @@ export const APP_TEXT = {
   // Forms & Actions
   saveProfile: "Save Profile",
   saveClient: "Save Client",
-  uploadLogo: "Upload Logo",
-  company: "Company Name",
-  gstin: "GSTIN (Optional)",
-  name: "Contact Name",
-  phone: "Phone Number",
-  email: "Email Address",
+  uploadLogo: "Logo",
+  company: "Firm Name",
+  gstin: "GSTIN",
+  name: "Name",
+  phone: "Phone",
+  email: "Email",
   
   // Banking
-  accountDetails: "Bank Account Details",
-  paymentQr: "UPI QR Code",
-  removeQr: "Remove QR",
-  uploadQr: "Upload QR",
+  accountDetails: "Bank Details",
+  paymentQr: "UPI QR",
+  removeQr: "Remove",
+  uploadQr: "Upload",
   bankFields: {
-    holderName: "Account Holder Name",
-    accountNumber: "Account Number",
+    holderName: "Account Name",
+    accountNumber: "Account No",
     bankName: "Bank Name",
-    ifscCode: "IFSC Code",
+    ifscCode: "IFSC",
     upiId: "UPI ID",
-    branchAddress: "Branch Address"
+    branchAddress: "Branch"
   },
   
   // Item Entry
@@ -60,10 +66,10 @@ export const APP_TEXT = {
   height: "Height",
   quantity: "Qty",
   rate: "Rate",
-  confirm: "Add Item",
+  confirm: "Add",
   cancelEdit: "Cancel",
-  updateItem: "Update Item",
-  voiceEntry: "Voice Entry",
+  updateItem: "Update",
+  voiceEntry: "Voice",
   processing: "Processing...",
   listening: "Listening...",
   speechNotSupported: "Speech recognition not supported in this browser.",
@@ -73,27 +79,27 @@ export const APP_TEXT = {
   searchPlaceholder: "Search items...",
   emptyList: "No items added yet.",
   billSummary: "Bill Summary",
-  totalArea: "Total Qty/Area",
+  totalArea: "Total Area",
   subTotal: "Sub Total",
   addGst: "Add GST",
   grandTotal: "Grand Total",
-  paymentHistory: "Payment History",
+  paymentHistory: "Received / Advance",
   balanceDue: "Balance Due",
   disclaimer: "Terms & Conditions",
   
   // Persistence & History
-  saveBill: "Save Bill",
-  saveEstimate: "Save Estimate",
-  billSaved: "Bill saved successfully",
-  estimateSaved: "Estimate saved successfully",
+  saveBill: "Save",
+  saveEstimate: "Save",
+  billSaved: "Saved successfully",
+  estimateSaved: "Saved successfully",
   loadDraft: "Draft loaded",
   profileSaved: "Profile saved",
   clientSaved: "Client saved",
-  confirmDelete: "Are you sure you want to delete this?",
+  confirmDelete: "Delete this?",
   history: "History",
   trash: "Trash",
   emptyTrash: "Trash is empty",
-  load: "Load",
+  load: "Edit",
   delete: "Delete",
   restore: "Restore",
 
@@ -212,7 +218,50 @@ export const AUTO_SUGGEST_ITEMS = [
   "Labor Charges",
   "Transport Charges",
   "Scaffolding Charges",
-  "Debris Removal"
+  "Debris Removal",
+  // ... (Keep existing large list if needed, truncated here for brevity but assuming full list exists)
+  "Site boundary marking",
+  "Site cleaning and debris removal",
+  "Excavation layout marking",
+  "PCC bed marking",
+  "Foundation centerline marking",
+  "Rebar cutting",
+  "Shuttering plank cleaning",
+  "Footing shuttering setup",
+  "Ready-mix concrete ordering",
+  "Column starter shuttering",
+  "Foundation wall brickwork",
+  "Plinth beam shuttering",
+  "DPC (Damp Proof Course) application",
+  "Brick/Block masonry line marking",
+  "Door frame marking",
+  "Window frame marking",
+  "Lintel shuttering",
+  "Slab shuttering plate installation",
+  "Beam bottom shuttering",
+  "Slab reinforcement mesh fabrication",
+  "Slab conduit layout marking",
+  "Slab concreting",
+  "Wall masonry on first floor",
+  "External wall plaster marking",
+  "Waterproofing chemical mixing",
+  "Plumbing pipe marking on wall",
+  "Electrical conduit chasing",
+  "AC copper piping layout",
+  "Ducting layout marking",
+  "Fire hydrant pipe installation",
+  "Lift pit construction",
+  "CCTV cable laying",
+  "Glass façade frame installation",
+  "Metal railing fabrication",
+  "Gypsum ceiling frame layout",
+  "Wooden flooring underlayer fixing",
+  "Tile layout marking",
+  "Painting putty application",
+  "Lighting fixture installation",
+  "Solar panel mounting structure installation",
+  "STP tank excavation",
+  "Landscaping soil filling"
 ];
 
 export const PAYMENT_METHODS = [
@@ -222,11 +271,11 @@ export const PAYMENT_METHODS = [
 ];
 
 export const DASHBOARD_TEXT = {
-  title: "Dashboard",
-  totalRevenue: "Total Revenue",
+  title: "Analytics",
+  totalRevenue: "Revenue",
   netProfit: "Net Profit",
-  totalExpenses: "Total Expenses",
-  outstanding: "Outstanding Due",
+  totalExpenses: "Expenses",
+  outstanding: "Due",
   monthlyTrend: "Monthly Trend",
   topClients: "Top Clients"
 };
