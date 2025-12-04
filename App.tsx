@@ -375,8 +375,16 @@ const App: React.FC = () => {
   // Determine if the current business category requires detailed dimension inputs (L x W x H)
   const isConstructionMode = useMemo(() => {
       const cat = contractor.businessCategory || '';
-      return !cat || ['Construction', 'Contractor', 'Manufacturing', 'Fabrication', 'Interior'].some(k => cat.includes(k)) || 
-             ['Civil', 'POP', 'Plumbing', 'Electrical', 'Painting', 'Masonry'].some(k => cat.includes(k));
+      // Check for Construction keywords
+      const constructionKeywords = ['Construction', 'Contractor', 'Manufacturing', 'Fabrication', 'Interior', 'Civil', 'POP', 'Plumbing', 'Electrical', 'Painting', 'Masonry'];
+      const isConstruct = !cat || constructionKeywords.some(k => cat.includes(k));
+      
+      // Explicit check to EXCLUDE Retail/Shop types even if they contain keyword "Material" or similar if added later
+      if (cat.includes('Shop') || cat.includes('Store') || cat.includes('Retail') || cat.includes('Wholesaler')) {
+          return false;
+      }
+      
+      return isConstruct;
   }, [contractor.businessCategory]);
 
   const toggleTheme = () => {
@@ -387,7 +395,49 @@ const App: React.FC = () => {
     else document.documentElement.classList.remove('dark');
   };
 
-  // ... (Keep existing helpers like calculateItemArea, calculateAmount, etc.)
+  // Helper to determine priority units based on category
+  const getPriorityUnits = (category: string): string[] => {
+      if (!category) return ['sq.ft', 'nos'];
+      const cat = category.toLowerCase();
+      
+      if (cat.includes('retail') || cat.includes('shop') || cat.includes('store') || cat.includes('wholesaler')) {
+          return ['nos', 'pcs', 'pkt', 'box', 'kg', 'ltr', 'set'];
+      }
+      if (cat.includes('civil') || cat.includes('masonry') || cat.includes('construction')) {
+          return ['sq.ft', 'cu.ft', 'brass', 'rft', 'bag', 'nos'];
+      }
+      if (cat.includes('fabrication') || cat.includes('steel')) {
+          return ['kg', 'ton', 'rft', 'sq.ft', 'nos'];
+      }
+      if (cat.includes('electrical') || cat.includes('plumbing')) {
+          return ['point', 'rft', 'nos', 'set', 'kw', 'hp'];
+      }
+      if (cat.includes('interior') || cat.includes('pop') || cat.includes('painting')) {
+          return ['sq.ft', 'rft', 'nos', 'lsum'];
+      }
+      if (cat.includes('service') || cat.includes('consultant') || cat.includes('agency')) {
+          return ['visit', 'hours', 'month', 'lsum'];
+      }
+      if (cat.includes('agriculture') || cat.includes('farm')) {
+          return ['kg', 'quintal', 'ton', 'ltr', 'pkt'];
+      }
+      if (cat.includes('real estate') || cat.includes('builder')) {
+          return ['sq.yd', 'acre', 'sq.mt', 'sq.ft'];
+      }
+      
+      return ['nos', 'sq.ft', 'rft'];
+  };
+
+  const { priorityOptions, otherOptions } = useMemo(() => {
+      const priorityKeys = getPriorityUnits(contractor.businessCategory || '');
+      const pOptions = CONSTRUCTION_UNITS.filter(u => priorityKeys.includes(u.value));
+      // Sort priority options to match the order returned by getPriorityUnits
+      pOptions.sort((a, b) => priorityKeys.indexOf(a.value) - priorityKeys.indexOf(b.value));
+      
+      const oOptions = CONSTRUCTION_UNITS.filter(u => !priorityKeys.includes(u.value));
+      return { priorityOptions: pOptions, otherOptions: oOptions };
+  }, [contractor.businessCategory]);
+
   const calculateItemArea = (len: number, wid: number, h: number, qty: number, unit: string) => {
     const q = parseFloat(String(qty)) || 1;
     const l = parseFloat(String(len)) || 0;
@@ -474,7 +524,11 @@ const App: React.FC = () => {
     const ht = Number(currentItem.height) || 0;
     const qty = Number(currentItem.quantity) || 1;
     const rt = Number(currentItem.rate) || 0;
-    const unt = currentItem.unit || (isConstructionMode ? 'sq.ft' : 'nos');
+    
+    // Default to first priority option if current unit is invalid for mode, or keep existing
+    const defaultUnit = priorityOptions.length > 0 ? priorityOptions[0].value : 'sq.ft';
+    const unt = currentItem.unit || defaultUnit;
+    
     const amount = calculateAmount(len, wid, ht, qty, rt, unt);
 
     const newItem: BillItem = {
@@ -507,7 +561,7 @@ const App: React.FC = () => {
       height: 0,
       quantity: 1,
       rate: 0,
-      unit: prev.unit || (isConstructionMode ? 'sq.ft' : 'nos'),
+      unit: prev.unit || defaultUnit,
       floor: prev.floor
     }));
   };
@@ -529,7 +583,7 @@ const App: React.FC = () => {
         height: 0,
         quantity: 1,
         rate: 0,
-        unit: 'sq.ft',
+        unit: priorityOptions[0]?.value || 'sq.ft',
         floor: prev.floor
      }));
   };
@@ -926,24 +980,17 @@ const App: React.FC = () => {
                                         value={currentItem.unit} 
                                         onChange={e => setCurrentItem({...currentItem, unit: e.target.value as any})}
                                       >
-                                        {!isConstructionMode ? (
-                                            <>
-                                                <option value="nos">Nos</option>
-                                                <option value="pcs">Pcs</option>
-                                                <option value="kg">Kg</option>
-                                                <option value="pkt">Pkt</option>
-                                                <option value="box">Box</option>
-                                                <option value="ltr">Ltr</option>
-                                                <option value="set">Set</option>
-                                                <option value="hours">Hours</option>
-                                                <option value="days">Days</option>
-                                                {/* Allow accessing other units if needed */}
-                                                <optgroup label="Others">
-                                                    {CONSTRUCTION_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-                                                </optgroup>
-                                            </>
-                                        ) : (
-                                            CONSTRUCTION_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)
+                                        <optgroup label="Suggested">
+                                            {priorityOptions.map(u => (
+                                                <option key={u.value} value={u.value}>{u.label}</option>
+                                            ))}
+                                        </optgroup>
+                                        {otherOptions.length > 0 && (
+                                            <optgroup label="Others">
+                                                {otherOptions.map(u => (
+                                                    <option key={u.value} value={u.value}>{u.label}</option>
+                                                ))}
+                                            </optgroup>
                                         )}
                                       </select>
                                   </div>
