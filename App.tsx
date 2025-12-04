@@ -117,12 +117,18 @@ const SwipeableItem: React.FC<SwipeableItemProps> = ({
           <div className="text-right flex flex-col items-end gap-1">
               <div className="font-extrabold text-slate-900 dark:text-white text-lg tracking-tight">₹{item.amount.toFixed(0)}</div>
               
-              {/* Explicit Action Buttons for Non-Gesture Users */}
-              <div className="flex gap-1">
-                <button onClick={() => onEdit(item)} className="p-2 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 transition">
+              {/* Visible Delete Action for Accessibility */}
+              <div className="flex gap-2 mt-1">
+                <button 
+                    onClick={() => onEdit(item)}
+                    className="p-1.5 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg hover:bg-indigo-100 transition"
+                >
                     <Pencil className="w-4 h-4" />
                 </button>
-                <button onClick={() => onDelete(item.id)} className="p-2 text-red-500 bg-red-50 dark:bg-red-900/30 dark:text-red-400 rounded-lg hover:bg-red-100 transition">
+                <button 
+                    onClick={() => onDelete(item.id)}
+                    className="p-1.5 text-red-500 bg-red-50 dark:bg-red-900/30 rounded-lg hover:bg-red-100 transition"
+                >
                     <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -375,53 +381,36 @@ const App: React.FC = () => {
   // Determine if the current business category requires detailed dimension inputs (L x W x H)
   const isConstructionMode = useMemo(() => {
       const cat = contractor.businessCategory || '';
-      // Check for Construction keywords
       const constructionKeywords = ['Construction', 'Contractor', 'Manufacturing', 'Fabrication', 'Interior', 'Civil', 'POP', 'Plumbing', 'Electrical', 'Painting', 'Masonry'];
       const isConstruct = !cat || constructionKeywords.some(k => cat.includes(k));
-      
-      // Explicit check to EXCLUDE Retail/Shop types even if they contain keyword "Material" or similar if added later
       if (cat.includes('Shop') || cat.includes('Store') || cat.includes('Retail') || cat.includes('Wholesaler')) {
           return false;
       }
-      
       return isConstruct;
   }, [contractor.businessCategory]);
 
-  // Determine if "FLOOR/LOC" field should be shown based on category
-  // Visible for: Contractors, Repairs, Installers, Architects
-  // Hidden for: Retail, Shops, Digital Services, Wholesalers
   const showFloorInput = useMemo(() => {
       const cat = contractor.businessCategory || '';
-      if (!cat) return true; // Default show
-      
+      if (!cat) return true;
       const allowedKeywords = [
           'Construction', 'Contractor', 'Builder', 'Interior', 'Architect', 'Civil', 'POP', 
           'Plumbing', 'Electrical', 'Painting', 'Masonry', 'Fabrication', 'Fitting', 'Installer',
           'Repair', 'Service Centre', 'Real Estate', 'HVAC', 'Roofing', 'Solar', 'CCTV', 'Security',
           'Carpenter', 'Decorator'
       ];
-      
       const excludedKeywords = [
           'Shop', 'Store', 'Retail', 'Wholesaler', 'Distributor', 'Agency', 'Consultant', 
           'Marketing', 'Developer', 'Accountant', 'Lawyer', 'Travel', 'Restaurant', 'Cafe', 
           'Bakery', 'Manufacturing', 'Logistics', 'Transport', 'Dealer'
       ];
-
-      // If matches exclusion, hide it
       if (excludedKeywords.some(k => cat.includes(k))) {
-          // Exception: Architect/Interior Designers might be Consultants but need floor
           if (cat.includes('Architect') || cat.includes('Interior')) return true;
           return false;
       }
-
-      // If matches allowed, show it
       if (allowedKeywords.some(k => cat.includes(k))) return true;
-
-      // Default fallback for "Other" - hide to keep simple unless specified
       return false;
   }, [contractor.businessCategory]);
 
-  // Clear floor value if hidden to prevent ghost data
   useEffect(() => {
       if (!showFloorInput && currentItem.floor) {
           setCurrentItem(prev => ({ ...prev, floor: '' }));
@@ -436,11 +425,9 @@ const App: React.FC = () => {
     else document.documentElement.classList.remove('dark');
   };
 
-  // Helper to determine priority units based on category
   const getPriorityUnits = (category: string): string[] => {
       if (!category) return ['sq.ft', 'nos'];
       const cat = category.toLowerCase();
-      
       if (cat.includes('retail') || cat.includes('shop') || cat.includes('store') || cat.includes('wholesaler')) {
           return ['nos', 'pcs', 'pkt', 'box', 'kg', 'ltr', 'set'];
       }
@@ -465,16 +452,13 @@ const App: React.FC = () => {
       if (cat.includes('real estate') || cat.includes('builder')) {
           return ['sq.yd', 'acre', 'sq.mt', 'sq.ft'];
       }
-      
       return ['nos', 'sq.ft', 'rft'];
   };
 
   const { priorityOptions, otherOptions } = useMemo(() => {
       const priorityKeys = getPriorityUnits(contractor.businessCategory || '');
       const pOptions = CONSTRUCTION_UNITS.filter(u => priorityKeys.includes(u.value));
-      // Sort priority options to match the order returned by getPriorityUnits
       pOptions.sort((a, b) => priorityKeys.indexOf(a.value) - priorityKeys.indexOf(b.value));
-      
       const oOptions = CONSTRUCTION_UNITS.filter(u => !priorityKeys.includes(u.value));
       return { priorityOptions: pOptions, otherOptions: oOptions };
   }, [contractor.businessCategory]);
@@ -498,7 +482,6 @@ const App: React.FC = () => {
     return totalQty * r;
   };
 
-  // Logic Handlers (Keep all logic same, just updating navigation)
   const handleCloudBackup = async () => {
       setIsSyncing(true);
       try {
@@ -542,8 +525,20 @@ const App: React.FC = () => {
      return `${prefix}-${(relevantHistory.length + 1).toString().padStart(3, '0')}`;
   };
 
+  const validateAndSwitchToItems = () => {
+      if (!contractor.companyName?.trim() && !contractor.name?.trim()) {
+          showToast("Please fill My Business Details", 'error');
+          return;
+      }
+      if (!client.name?.trim()) {
+          showToast("Please fill Client Name", 'error');
+          return;
+      }
+      setCreateStep('items');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const validateAndNext = (nextStep: CreateStep) => {
-      // 1. Basic Party Validation (Required for Items and Summary)
       if (nextStep === 'items' || nextStep === 'summary') {
           if (!contractor.companyName?.trim() && !contractor.name?.trim()) {
               showToast("Please fill My Business Details", 'error');
@@ -554,20 +549,16 @@ const App: React.FC = () => {
               return;
           }
       }
-
-      // 2. Items Validation (Required for Summary)
       if (nextStep === 'summary') {
           if (items.length === 0) {
               showToast("Please add at least one item before proceeding to summary", 'error');
               return;
           }
       }
-
       setCreateStep(nextStep);
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // ... (Keep Item/Payment Handlers: handleAddItem, handleEditItem, etc.)
   const handleAddItem = () => {
     if (!currentItem.description || !currentItem.rate) return;
     const len = Number(currentItem.length) || 0;
@@ -575,11 +566,8 @@ const App: React.FC = () => {
     const ht = Number(currentItem.height) || 0;
     const qty = Number(currentItem.quantity) || 1;
     const rt = Number(currentItem.rate) || 0;
-    
-    // Default to first priority option if current unit is invalid for mode, or keep existing
     const defaultUnit = priorityOptions.length > 0 ? priorityOptions[0].value : 'sq.ft';
     const unt = currentItem.unit || defaultUnit;
-    
     const amount = calculateAmount(len, wid, ht, qty, rt, unt);
 
     const newItem: BillItem = {
@@ -661,7 +649,6 @@ const App: React.FC = () => {
 
   const handleDescriptionChange = (text: string) => {
       setCurrentItem({ ...currentItem, description: text });
-      
       if (text.trim().length > 1) {
           const filtered = AUTO_SUGGEST_ITEMS.filter(item => 
               item.toLowerCase().includes(text.toLowerCase())
@@ -759,11 +746,10 @@ const App: React.FC = () => {
      setBillDate(new Date().toISOString().split('T')[0]);
      setPaymentStatus('Pending');
      setEstimateStatus('Draft');
-     setCreateStep('parties'); // Reset step
+     setCreateStep('parties'); 
      showToast("New document started");
   };
 
-  // ... (Load Bill, Delete, Restore, Profiles logic same as before, ensuring `setCurrentView` updates where needed)
   const handleLoadBill = (bill: SavedBillData) => {
     setDocumentType(bill.type || 'invoice');
     setEstimateStatus(bill.estimateStatus || 'Draft');
@@ -799,8 +785,8 @@ const App: React.FC = () => {
     } else {
        setPayments([]);
     }
-    setCurrentView('create'); // Switch to editor
-    setCreateStep('summary'); // Go to summary
+    setCurrentView('create');
+    setCreateStep('summary');
     showToast(t.loadDraft);
   };
 
@@ -824,8 +810,41 @@ const App: React.FC = () => {
       handleLoadBill(newInvoice);
   };
 
-  // Profile Management Logic
-  const handleSaveProfile = () => { const newProfile = saveProfile(contractor); setProfiles(getProfiles()); setSelectedProfileId(newProfile.id); showToast(t.profileSaved); };
+  // Profile Management Logic - IMPROVED WITH PROMPT
+  const handleSaveProfile = () => { 
+      let saveMode: 'auto' | 'update' | 'create' = 'auto';
+      let targetId = selectedProfileId;
+
+      // 1. If we have a profile loaded, check for major changes like Category
+      if (selectedProfileId) {
+          const original = profiles.find(p => p.id === selectedProfileId);
+          if (original && original.details.businessCategory !== contractor.businessCategory) {
+              const confirmUpdate = window.confirm(
+                  `Business Category changed from "${original.details.businessCategory || 'None'}" to "${contractor.businessCategory || 'None'}".\n\nPress OK to UPDATE existing profile.\nPress CANCEL to Create a NEW Profile.`
+              );
+              
+              if (confirmUpdate) {
+                  saveMode = 'update';
+              } else {
+                  // User chose Cancel -> implies Create New. 
+                  // But we should ask if they actually want to create new or if they cancelled by mistake.
+                  // For better UX, we'll assume Cancel means "Don't update existing", so we Create New.
+                  saveMode = 'create';
+                  targetId = ''; // Clear ID to force creation
+                  if (!window.confirm("Saving as a NEW profile. Continue?")) return;
+              }
+          } else {
+              // Same category, normal update flow (likely 'auto' will handle by name, or we can force 'update')
+              saveMode = 'update';
+          }
+      }
+
+      const newProfile = saveProfile(contractor, undefined, saveMode, targetId); 
+      setProfiles(getProfiles()); 
+      setSelectedProfileId(newProfile.id); 
+      showToast(t.profileSaved); 
+  };
+
   const handleLoadProfile = (id: string) => { const profile = profiles.find(p => p.id === id); if (profile) { setContractor(profile.details); setSelectedProfileId(id); showToast("Profile loaded"); } };
   const handleNewContractorProfile = () => { setContractor({ name: '', companyName: '', gstin: '', phone: '', email: '', website: '', socialLinks: [], accountDetails: '', bankDetails: { holderName: '', bankName: '', accountNumber: '', ifscCode: '', upiId: '', branchAddress: '' }, logo: '', upiQrCode: '' }); setSelectedProfileId(''); showToast("Form cleared"); };
   const handleDeleteProfile = (id: string) => { if(window.confirm(t.confirmDelete)) { deleteProfile(id); setProfiles(prev => prev.filter(p => p.id !== id)); if (selectedProfileId === id) setSelectedProfileId(''); showToast("Profile deleted"); } };
@@ -906,7 +925,7 @@ const App: React.FC = () => {
                    {/* Step Indicator */}
                    <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl relative">
                       <button onClick={() => setCreateStep('parties')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all z-10 ${createStep === 'parties' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-white' : 'text-slate-500'}`}>{t.stepParties}</button>
-                      <button onClick={() => validateAndNext('items')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all z-10 ${createStep === 'items' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-white' : 'text-slate-500'}`}>{t.stepItems}</button>
+                      <button onClick={() => validateAndSwitchToItems()} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all z-10 ${createStep === 'items' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-white' : 'text-slate-500'}`}>{t.stepItems}</button>
                       <button onClick={() => validateAndNext('summary')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all z-10 ${createStep === 'summary' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-white' : 'text-slate-500'}`}>{t.stepSummary}</button>
                    </div>
                 </div>
@@ -952,6 +971,7 @@ const App: React.FC = () => {
                             <div className="flex gap-1">
                                <select className="bg-slate-50 dark:bg-slate-800 text-xs p-1.5 rounded outline-none max-w-[100px]" value={selectedProfileId} onChange={(e) => handleLoadProfile(e.target.value)}><option value="">Load Profile</option>{profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
                                <button onClick={handleNewContractorProfile} className="p-1.5 bg-slate-100 dark:bg-slate-800 rounded"><FilePlus className="w-3 h-3" /></button>
+                               {selectedProfileId && <button onClick={() => handleDeleteProfile(selectedProfileId)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-red-500 rounded"><Trash2 className="w-3 h-3" /></button>}
                                <button onClick={handleSaveProfile} className="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded"><Save className="w-3 h-3" /></button>
                             </div>
                          </div>
@@ -985,6 +1005,7 @@ const App: React.FC = () => {
                             <div className="flex gap-1">
                                <select className="bg-slate-50 dark:bg-slate-800 text-xs p-1.5 rounded outline-none max-w-[100px]" value={selectedClientId} onChange={(e) => handleLoadClientProfile(e.target.value)}><option value="">Load Client</option>{filteredClientProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
                                <button onClick={handleNewClientProfile} className="p-1.5 bg-slate-100 dark:bg-slate-800 rounded"><FilePlus className="w-3 h-3" /></button>
+                               {selectedClientId && <button onClick={() => handleDeleteClientProfile(selectedClientId)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-red-500 rounded"><Trash2 className="w-3 h-3" /></button>}
                                <button onClick={handleSaveClientProfile} className="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded"><Save className="w-3 h-3" /></button>
                             </div>
                          </div>
@@ -1000,7 +1021,7 @@ const App: React.FC = () => {
                           <button onClick={() => setIsExpensesModalOpen(true)} className="text-xs bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded font-bold hover:bg-slate-200 transition">Manage</button>
                       </div>
 
-                      <button onClick={() => validateAndNext('items')} className="w-full btn-primary py-4 text-lg shadow-xl flex items-center justify-center gap-2">Next: Items <ArrowRight className="w-5 h-5" /></button>
+                      <button onClick={() => validateAndSwitchToItems()} className="w-full btn-primary py-4 text-lg shadow-xl flex items-center justify-center gap-2">Next: Items <ArrowRight className="w-5 h-5" /></button>
                    </div>
                 )}
 

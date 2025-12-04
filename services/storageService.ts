@@ -147,20 +147,56 @@ export const updateEstimateStatus = (id: string, status: EstimateStatus) => {
 
 // --- Contractor Profiles ---
 
-export const saveProfile = (details: ContractorDetails, name?: string): ContractorProfile => {
+export const saveProfile = (
+  details: ContractorDetails, 
+  name?: string,
+  mode: 'auto' | 'update' | 'create' = 'auto',
+  targetId?: string
+): ContractorProfile => {
   const profiles = getProfiles();
   
-  // Check if profile exists by Company Name or Name
-  const targetName = name || details.companyName || details.name;
+  // MODE: UPDATE (Strictly update specific ID)
+  if (mode === 'update' && targetId) {
+    const idx = profiles.findIndex(p => p.id === targetId);
+    if (idx >= 0) {
+      profiles[idx] = { ...profiles[idx], details };
+      localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+      return profiles[idx];
+    }
+  }
+
+  const baseName = name || details.companyName || details.name || 'New Profile';
+  
+  // MODE: CREATE (Force new, handle name duplicates)
+  if (mode === 'create') {
+    let finalName = baseName;
+    const nameExists = profiles.some(p => p.name.toLowerCase() === baseName.toLowerCase());
+    
+    // If name exists, append category to differentiate (e.g., "My Corp (Retail)")
+    if (nameExists && details.businessCategory) {
+       finalName = `${baseName} (${details.businessCategory})`;
+    } else if (nameExists) {
+       finalName = `${baseName} (Copy)`;
+    }
+
+    const newProfile: ContractorProfile = {
+      id: Date.now().toString(),
+      name: finalName,
+      details
+    };
+    const updatedProfiles = [...profiles, newProfile];
+    localStorage.setItem(PROFILES_KEY, JSON.stringify(updatedProfiles));
+    return newProfile;
+  }
+
+  // MODE: AUTO (Default legacy behavior - Match by name)
   const existingIndex = profiles.findIndex(p => 
-    p.name.trim().toLowerCase() === targetName?.trim().toLowerCase()
+    p.name.trim().toLowerCase() === baseName.trim().toLowerCase()
   );
 
   if (existingIndex >= 0) {
-    // Update existing
-    const existingProfile = profiles[existingIndex];
     const updatedProfile = {
-      ...existingProfile,
+      ...profiles[existingIndex],
       details: details
     };
     profiles[existingIndex] = updatedProfile;
@@ -168,10 +204,10 @@ export const saveProfile = (details: ContractorDetails, name?: string): Contract
     return updatedProfile;
   }
 
-  // Create new
+  // Create new if no match found in auto mode
   const newProfile: ContractorProfile = {
     id: Date.now().toString(),
-    name: targetName || 'New Profile',
+    name: baseName,
     details
   };
   
@@ -199,7 +235,7 @@ export const saveClientProfile = (details: ClientDetails, contractorId?: string)
   // Check if a client with this name already exists
   const existingIndex = profiles.findIndex(p => 
     p.details.name.trim().toLowerCase() === details.name.trim().toLowerCase() &&
-    // Optional: Only treat as duplicate if it belongs to same contractor or is global
+    // Only treat as duplicate if it belongs to same contractor or is global
     (!contractorId || !p.contractorId || p.contractorId === contractorId)
   );
 
