@@ -387,6 +387,47 @@ const App: React.FC = () => {
       return isConstruct;
   }, [contractor.businessCategory]);
 
+  // Determine if "FLOOR/LOC" field should be shown based on category
+  // Visible for: Contractors, Repairs, Installers, Architects
+  // Hidden for: Retail, Shops, Digital Services, Wholesalers
+  const showFloorInput = useMemo(() => {
+      const cat = contractor.businessCategory || '';
+      if (!cat) return true; // Default show
+      
+      const allowedKeywords = [
+          'Construction', 'Contractor', 'Builder', 'Interior', 'Architect', 'Civil', 'POP', 
+          'Plumbing', 'Electrical', 'Painting', 'Masonry', 'Fabrication', 'Fitting', 'Installer',
+          'Repair', 'Service Centre', 'Real Estate', 'HVAC', 'Roofing', 'Solar', 'CCTV', 'Security',
+          'Carpenter', 'Decorator'
+      ];
+      
+      const excludedKeywords = [
+          'Shop', 'Store', 'Retail', 'Wholesaler', 'Distributor', 'Agency', 'Consultant', 
+          'Marketing', 'Developer', 'Accountant', 'Lawyer', 'Travel', 'Restaurant', 'Cafe', 
+          'Bakery', 'Manufacturing', 'Logistics', 'Transport', 'Dealer'
+      ];
+
+      // If matches exclusion, hide it
+      if (excludedKeywords.some(k => cat.includes(k))) {
+          // Exception: Architect/Interior Designers might be Consultants but need floor
+          if (cat.includes('Architect') || cat.includes('Interior')) return true;
+          return false;
+      }
+
+      // If matches allowed, show it
+      if (allowedKeywords.some(k => cat.includes(k))) return true;
+
+      // Default fallback for "Other" - hide to keep simple unless specified
+      return false;
+  }, [contractor.businessCategory]);
+
+  // Clear floor value if hidden to prevent ghost data
+  useEffect(() => {
+      if (!showFloorInput && currentItem.floor) {
+          setCurrentItem(prev => ({ ...prev, floor: '' }));
+      }
+  }, [showFloorInput]);
+
   const toggleTheme = () => {
     const newTheme = !isDarkMode ? 'dark' : 'light';
     setIsDarkMode(!isDarkMode);
@@ -973,7 +1014,8 @@ const App: React.FC = () => {
                             <div className="p-4 border-t border-slate-100 dark:border-slate-800">
                                {/* (Insert existing optimized Grid Layout here) */}
                                <div className="grid grid-cols-12 gap-3 mb-4">
-                                  <div className="col-span-6 sm:col-span-2">
+                                  {/* Unit Selection */}
+                                  <div className={`col-span-12 ${showFloorInput ? 'sm:col-span-2' : 'sm:col-span-3'}`}>
                                       <label className="text-[10px] font-bold text-slate-400 block mb-1">UNIT</label>
                                       <select 
                                         className="input-field text-sm p-2 text-center" 
@@ -995,13 +1037,19 @@ const App: React.FC = () => {
                                       </select>
                                   </div>
                                   
-                                  <div className="col-span-6 sm:col-span-2">
-                                      <label className="text-[10px] font-bold text-slate-400 block mb-1">FLOOR/LOC</label>
-                                      <input list="floors" className="input-field text-sm p-2" placeholder="Loc" value={currentItem.floor || ''} onChange={e => setCurrentItem({...currentItem, floor: e.target.value})} />
-                                      <datalist id="floors">{Object.values(t.floors).map(f => <option key={f} value={f} />)}</datalist>
-                                  </div>
+                                  {/* Floor / Location - Conditionally Visible */}
+                                  {showFloorInput && (
+                                    <div className="col-span-12 sm:col-span-2">
+                                        <label className="text-[10px] font-bold text-slate-400 block mb-1">FLOOR/LOC</label>
+                                        <input list="floors" className="input-field text-sm p-2" placeholder="Loc" value={currentItem.floor || ''} onChange={e => setCurrentItem({...currentItem, floor: e.target.value})} />
+                                        <datalist id="floors">{Object.values(t.floors).map(f => <option key={f} value={f} />)}</datalist>
+                                    </div>
+                                  )}
                                   
-                                  <div className="col-span-12 sm:col-span-8 relative"><label className="text-[10px] font-bold text-slate-400 block mb-1">DESCRIPTION</label><input type="text" className="input-field text-sm p-2 w-full" placeholder="Item Name" value={currentItem.description} onChange={e => handleDescriptionChange(e.target.value)} onFocus={() => currentItem.description && setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} />
+                                  {/* Description - Spans more if floor is hidden */}
+                                  <div className={`col-span-12 ${showFloorInput ? 'sm:col-span-8' : 'sm:col-span-9'} relative`}>
+                                     <label className="text-[10px] font-bold text-slate-400 block mb-1">DESCRIPTION</label>
+                                     <input type="text" className="input-field text-sm p-2 w-full" placeholder="Item Name" value={currentItem.description} onChange={e => handleDescriptionChange(e.target.value)} onFocus={() => currentItem.description && setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} />
                                      {showSuggestions && suggestions.length > 0 && <ul className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border rounded-lg shadow-lg max-h-40 overflow-y-auto z-50">{suggestions.map((s,i) => <li key={i} onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(s); }} className="px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer">{s}</li>)}</ul>}
                                   </div>
                                   
