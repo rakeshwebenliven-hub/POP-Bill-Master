@@ -25,6 +25,67 @@ interface ClientPerformance {
   invoiceCount: number;
 }
 
+interface CategoryExpense {
+  category: string;
+  amount: number;
+  percentage: number;
+}
+
+export const filterDataByDate = (history: SavedBillData[], range: string): SavedBillData[] => {
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  
+  return history.filter(item => {
+    const itemDate = new Date(item.billDate || item.timestamp).getTime();
+    
+    switch (range) {
+      case 'today':
+        return itemDate >= startOfDay;
+      case 'week':
+        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay())).getTime();
+        return itemDate >= startOfWeek;
+      case 'month':
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        return itemDate >= startOfMonth;
+      case 'quarter':
+        const currentQuarter = Math.floor(now.getMonth() / 3);
+        const startOfQuarter = new Date(now.getFullYear(), currentQuarter * 3, 1).getTime();
+        return itemDate >= startOfQuarter;
+      case 'year':
+        const startOfYear = new Date(now.getFullYear(), 0, 1).getTime();
+        return itemDate >= startOfYear;
+      default:
+        return true;
+    }
+  });
+};
+
+export const getExpenseCategoryStats = (history: SavedBillData[]): CategoryExpense[] => {
+  const categoryMap: Record<string, number> = {};
+  let totalExpenses = 0;
+
+  history.forEach(inv => {
+    // Only process Invoices or Expenses, generally Expenses are attached to bills
+    if (inv.expenses) {
+      inv.expenses.forEach(exp => {
+        if (!categoryMap[exp.category]) categoryMap[exp.category] = 0;
+        categoryMap[exp.category] += exp.amount;
+        totalExpenses += exp.amount;
+      });
+    }
+  });
+
+  if (totalExpenses === 0) return [];
+
+  return Object.keys(categoryMap)
+    .map(cat => ({
+      category: cat,
+      amount: categoryMap[cat],
+      percentage: (categoryMap[cat] / totalExpenses) * 100
+    }))
+    .sort((a, b) => b.amount - a.amount);
+};
+
 export const calculateDashboardStats = (history: SavedBillData[]): DashboardStats => {
   const invoices = history.filter(h => !h.type || h.type === 'invoice');
   

@@ -510,3 +510,12 @@ export const DASHBOARD_TEXT = {
   monthlyTrend: "Monthly Trend",
   topClients: "Top Clients"
 };
+
+export const DASHBOARD_FILTERS = {
+  all: 'All Time',
+  today: 'Today',
+  week: 'This Week',
+  month: 'This Month',
+  quarter: 'This Quarter',
+  year: 'This Year'
+};
