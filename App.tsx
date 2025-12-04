@@ -1027,6 +1027,27 @@ const App: React.FC = () => {
                             </div>
                          </div>
                          <div className="grid grid-cols-1 gap-3">
+                            {/* Logo Upload Section */}
+                            <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                                <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-lg flex items-center justify-center border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0 relative group">
+                                    {contractor.logo ? (
+                                        <>
+                                            <img src={contractor.logo} alt="Logo" className="w-full h-full object-cover" />
+                                            <button onClick={() => setContractor({...contractor, logo: ''})} className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><X className="w-5 h-5 text-white" /></button>
+                                        </>
+                                    ) : (
+                                        <ImageIcon className="w-6 h-6 text-slate-300" />
+                                    )}
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-1">Business Logo</p>
+                                    <label className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-lg cursor-pointer hover:bg-indigo-100 transition">
+                                        <Upload className="w-3 h-3" /> Upload
+                                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'logo')} />
+                                    </label>
+                                </div>
+                            </div>
+
                             <select 
                                 value={contractor.businessCategory || ''} 
                                 onChange={(e) => setContractor({...contractor, businessCategory: e.target.value})} 
@@ -1046,6 +1067,9 @@ const App: React.FC = () => {
                                <input type="text" placeholder={t.name} value={contractor.name} onChange={e => setContractor({...contractor, name: e.target.value})} className="input-field" />
                                <input type="tel" placeholder={t.phone} value={contractor.phone} onChange={e => setContractor({...contractor, phone: e.target.value})} className="input-field" />
                             </div>
+                            <input type="email" placeholder="Email Address" value={contractor.email} onChange={e => setContractor({...contractor, email: e.target.value})} className="input-field" />
+                            <input type="text" placeholder="Website URL" value={contractor.website} onChange={e => setContractor({...contractor, website: e.target.value})} className="input-field" />
+                            <input type="text" placeholder="GSTIN (Optional)" value={contractor.gstin} onChange={e => setContractor({...contractor, gstin: e.target.value})} className="input-field" />
                          </div>
                       </div>
 
@@ -1205,7 +1229,7 @@ const App: React.FC = () => {
                           <div className="flex items-center justify-between">
                               <h3 className="font-bold text-sm flex items-center gap-2"><Landmark className="w-4 h-4 text-indigo-500" /> Bank Account Details</h3>
                               <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" checked={includeBankDetails} onChange={e => setIncludeBankDetails(e.target.checked)} className="sr-only peer" />
+                                <input type="checkbox" checked={includeBankDetails} onChange={e => setIncludeBankDetails(e.target.value)} className="sr-only peer" />
                                 <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                               </label>
                           </div>
