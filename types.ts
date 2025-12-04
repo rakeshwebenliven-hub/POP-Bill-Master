@@ -45,6 +45,7 @@ export interface BankAccountDetails {
 export interface ContractorDetails {
   name: string;
   companyName: string;
+  businessCategory?: string; // New field for business type
   phone: string;
   email: string;
   website: string;

@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, LayoutList, Contact, FileCheck, Wallet, PieChart, ChevronLeft, Menu, Settings, Check, ArrowRight, Home, ChevronDown, ChevronUp } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile, ClientProfile, DocumentType, EstimateStatus, ExpenseRecord } from './types';
-import { APP_TEXT, SUBSCRIPTION_PLANS, CONSTRUCTION_UNITS, AUTO_SUGGEST_ITEMS } from './constants';
+import { APP_TEXT, SUBSCRIPTION_PLANS, CONSTRUCTION_UNITS, AUTO_SUGGEST_ITEMS, BUSINESS_CATEGORIES } from './constants';
 import { generateExcel } from './services/excelService';
 import { generatePDF } from './services/pdfService';
 import { saveDraft, loadDraft, saveToHistory, getHistory, deleteFromHistory, saveProfile, getProfiles, deleteProfile, updateBillStatus, getTrash, restoreFromTrash, permanentDelete, saveClientProfile, getClientProfiles, deleteClientProfile, updateEstimateStatus } from './services/storageService';
@@ -177,6 +178,7 @@ const App: React.FC = () => {
   const [contractor, setContractor] = useState<ContractorDetails>({
     name: '',
     companyName: '',
+    businessCategory: '',
     gstin: '',
     phone: '',
     email: '',
@@ -370,6 +372,13 @@ const App: React.FC = () => {
     }
   }, [items, client, contractor, gstEnabled, gstRate, billNumber, billDate, paymentStatus, payments, expenses, disclaimer, user, documentType, estimateStatus]);
 
+  // Determine if the current business category requires detailed dimension inputs (L x W x H)
+  const isConstructionMode = useMemo(() => {
+      const cat = contractor.businessCategory || '';
+      return !cat || ['Construction', 'Contractor', 'Manufacturing', 'Fabrication', 'Interior'].some(k => cat.includes(k)) || 
+             ['Civil', 'POP', 'Plumbing', 'Electrical', 'Painting', 'Masonry'].some(k => cat.includes(k));
+  }, [contractor.businessCategory]);
+
   const toggleTheme = () => {
     const newTheme = !isDarkMode ? 'dark' : 'light';
     setIsDarkMode(!isDarkMode);
@@ -465,7 +474,7 @@ const App: React.FC = () => {
     const ht = Number(currentItem.height) || 0;
     const qty = Number(currentItem.quantity) || 1;
     const rt = Number(currentItem.rate) || 0;
-    const unt = currentItem.unit || 'sq.ft';
+    const unt = currentItem.unit || (isConstructionMode ? 'sq.ft' : 'nos');
     const amount = calculateAmount(len, wid, ht, qty, rt, unt);
 
     const newItem: BillItem = {
@@ -498,7 +507,7 @@ const App: React.FC = () => {
       height: 0,
       quantity: 1,
       rate: 0,
-      unit: prev.unit || 'sq.ft',
+      unit: prev.unit || (isConstructionMode ? 'sq.ft' : 'nos'),
       floor: prev.floor
     }));
   };
@@ -842,6 +851,20 @@ const App: React.FC = () => {
                             </div>
                          </div>
                          <div className="grid grid-cols-1 gap-3">
+                            <select 
+                                value={contractor.businessCategory || ''} 
+                                onChange={(e) => setContractor({...contractor, businessCategory: e.target.value})} 
+                                className="input-field text-sm font-medium"
+                            >
+                                <option value="">Select Business Category</option>
+                                {BUSINESS_CATEGORIES.map(group => (
+                                    <optgroup key={group.name} label={group.name}>
+                                        {group.categories.map(cat => (
+                                            <option key={cat} value={cat}>{cat}</option>
+                                        ))}
+                                    </optgroup>
+                                ))}
+                            </select>
                             <input type="text" placeholder={t.company} value={contractor.companyName} onChange={e => setContractor({...contractor, companyName: e.target.value})} className="input-field" />
                             <div className="flex gap-2">
                                <input type="text" placeholder={t.name} value={contractor.name} onChange={e => setContractor({...contractor, name: e.target.value})} className="input-field" />
@@ -896,14 +919,47 @@ const App: React.FC = () => {
                             <div className="p-4 border-t border-slate-100 dark:border-slate-800">
                                {/* (Insert existing optimized Grid Layout here) */}
                                <div className="grid grid-cols-12 gap-3 mb-4">
-                                  <div className="col-span-6 sm:col-span-2"><label className="text-[10px] font-bold text-slate-400 block mb-1">UNIT</label><select className="input-field text-sm p-2 text-center" value={currentItem.unit} onChange={e => setCurrentItem({...currentItem, unit: e.target.value as any})}>{CONSTRUCTION_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}</select></div>
-                                  <div className="col-span-6 sm:col-span-2"><label className="text-[10px] font-bold text-slate-400 block mb-1">FLOOR</label><input list="floors" className="input-field text-sm p-2" placeholder="Floor" value={currentItem.floor || ''} onChange={e => setCurrentItem({...currentItem, floor: e.target.value})} /><datalist id="floors">{Object.values(t.floors).map(f => <option key={f} value={f} />)}</datalist></div>
+                                  <div className="col-span-6 sm:col-span-2">
+                                      <label className="text-[10px] font-bold text-slate-400 block mb-1">UNIT</label>
+                                      <select 
+                                        className="input-field text-sm p-2 text-center" 
+                                        value={currentItem.unit} 
+                                        onChange={e => setCurrentItem({...currentItem, unit: e.target.value as any})}
+                                      >
+                                        {!isConstructionMode ? (
+                                            <>
+                                                <option value="nos">Nos</option>
+                                                <option value="pcs">Pcs</option>
+                                                <option value="kg">Kg</option>
+                                                <option value="pkt">Pkt</option>
+                                                <option value="box">Box</option>
+                                                <option value="ltr">Ltr</option>
+                                                <option value="set">Set</option>
+                                                <option value="hours">Hours</option>
+                                                <option value="days">Days</option>
+                                                {/* Allow accessing other units if needed */}
+                                                <optgroup label="Others">
+                                                    {CONSTRUCTION_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                                                </optgroup>
+                                            </>
+                                        ) : (
+                                            CONSTRUCTION_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)
+                                        )}
+                                      </select>
+                                  </div>
+                                  
+                                  <div className="col-span-6 sm:col-span-2">
+                                      <label className="text-[10px] font-bold text-slate-400 block mb-1">FLOOR/LOC</label>
+                                      <input list="floors" className="input-field text-sm p-2" placeholder="Loc" value={currentItem.floor || ''} onChange={e => setCurrentItem({...currentItem, floor: e.target.value})} />
+                                      <datalist id="floors">{Object.values(t.floors).map(f => <option key={f} value={f} />)}</datalist>
+                                  </div>
+                                  
                                   <div className="col-span-12 sm:col-span-8 relative"><label className="text-[10px] font-bold text-slate-400 block mb-1">DESCRIPTION</label><input type="text" className="input-field text-sm p-2 w-full" placeholder="Item Name" value={currentItem.description} onChange={e => handleDescriptionChange(e.target.value)} onFocus={() => currentItem.description && setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} />
                                      {showSuggestions && suggestions.length > 0 && <ul className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border rounded-lg shadow-lg max-h-40 overflow-y-auto z-50">{suggestions.map((s,i) => <li key={i} onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(s); }} className="px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer">{s}</li>)}</ul>}
                                   </div>
                                   
-                                  {/* Dimensions Row */}
-                                  {!isSimpleUnit && (
+                                  {/* Dimensions Row - Show only if Construction Mode */}
+                                  {isConstructionMode && !isSimpleUnit && (
                                      <>
                                         <div className="col-span-4"><label className="text-[10px] font-bold text-slate-400 block mb-1">LENGTH</label><input type="number" inputMode="decimal" className="input-field text-center p-2 text-sm" placeholder="0" value={currentItem.length || ''} onChange={e => setCurrentItem({...currentItem, length: parseFloat(e.target.value)})} onFocus={e => e.target.select()} /></div>
                                         {!isLinear && <div className="col-span-4"><label className="text-[10px] font-bold text-slate-400 block mb-1">WIDTH</label><input type="number" inputMode="decimal" className="input-field text-center p-2 text-sm" placeholder="0" value={currentItem.width || ''} onChange={e => setCurrentItem({...currentItem, width: parseFloat(e.target.value)})} onFocus={e => e.target.select()} /></div>}
@@ -925,7 +981,7 @@ const App: React.FC = () => {
                                <div className="flex gap-2">
                                   <button onClick={() => setIsVoiceModalOpen(true)} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 dark:shadow-none animate-pulse hover:animate-none active:scale-95 transition"><Mic className="w-5 h-5" /> TAP TO SPEAK</button>
                                   <button onClick={handleAddItem} disabled={!currentItem.description || !currentItem.rate} className="flex-[2] btn-primary py-3 flex items-center justify-center gap-2">{editingId ? 'Update' : 'Add'} <Plus className="w-5 h-5" /></button>
-                               </div>
+                                </div>
                             </div>
                          )}
                       </div>

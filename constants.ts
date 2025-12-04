@@ -156,6 +156,82 @@ export const CONSTRUCTION_UNITS = [
   { value: 'hp', label: 'HP' }
 ];
 
+export const BUSINESS_CATEGORIES = [
+  {
+    name: "Construction & Contractors",
+    categories: [
+      "Civil Contractor", "POP Contractor", "Electrical Contractor", "Plumbing Contractor", 
+      "Painting Contractor", "Masonry Contractor", "Labour Contractor", "Fabrication Contractor", 
+      "Interior Designer", "Architect", "Real Estate Builder", "HVAC Contractor", 
+      "Roofing/Waterproofing", "Solar Plant Contractor", "CCTV Installer"
+    ]
+  },
+  {
+    name: "Retail & Consumer Shops",
+    categories: [
+      "Kirana Store", "Supermarket/Hypermarket", "General Store", "Mobile & Accessories", 
+      "Electronics Store", "Garment/Clothing Store", "Saree Shop", "Footwear Store", 
+      "Jewellery Store", "Hardware Shop", "Paint Shop", "Sanitaryware Shop", 
+      "Medical Store/Pharmacy", "Stationery/Bookstore", "Gift/Toy Shop", "Furniture Shop", 
+      "Optical Shop", "Pet Supply Store", "Sports Shop"
+    ]
+  },
+  {
+    name: "Food & Hospitality",
+    categories: [
+      "Restaurant", "Cafe", "Cloud Kitchen", "Catering Service", "Bakery/Cake Shop", 
+      "Sweet Shop", "Tiffin Service", "Hotel/Resort", "Juice Centre", "Ice Cream Parlour"
+    ]
+  },
+  {
+    name: "Services & Freelancers",
+    categories: [
+      "CA/Accountant", "Lawyer/Consultant", "Digital Marketing", "Web/App Developer", 
+      "Event Planner", "Photographer", "Beauty Salon/Spa", "Gym/Yoga Trainer", 
+      "AC/Appliance Repair", "Electrician/Plumber (Service)", "Coaching Class/Tutor", "Travel Agent"
+    ]
+  },
+  {
+    name: "Automobile & Mechanical",
+    categories: [
+      "Car/Bike Dealership", "Spare Parts Shop", "Garage/Service Centre", "Tyre Shop", 
+      "Car Detailing/Wash", "Battery Shop"
+    ]
+  },
+  {
+    name: "Wholesalers & Distributors",
+    categories: [
+      "FMCG Wholesaler", "Grain Merchant", "Vegetable/Fruit Wholesaler", "Textile Wholesaler", 
+      "Pharma Distributor", "Hardware Wholesaler", "Construction Material Supplier"
+    ]
+  },
+  {
+    name: "Manufacturing",
+    categories: [
+      "Food Manufacturing", "Textile/Garment Mfg", "Chemical/Plastic Mfg", "Furniture Mfg", 
+      "Machinery/Tools Mfg", "Paper/Packaging Mfg"
+    ]
+  },
+  {
+    name: "Agriculture",
+    categories: [
+      "Fertiliser/Pesticide Shop", "Seed Company", "Dairy Farm", "Poultry Farm", "Tractor Dealer"
+    ]
+  },
+  {
+    name: "Logistics & Transport",
+    categories: [
+      "Transporter", "Packers & Movers", "Courier Service", "Fleet Owner"
+    ]
+  },
+  {
+    name: "Other",
+    categories: [
+      "NGO/Trust", "Printing/Xerox Shop", "Laundry/Dry Cleaner", "Scrap Dealer", "Cyber Cafe"
+    ]
+  }
+];
+
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: 'monthly',
