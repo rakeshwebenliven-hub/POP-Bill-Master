@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, LayoutList, Contact, FileCheck, Wallet, PieChart, ChevronLeft, Menu, Settings, Check, ArrowRight, Home, ChevronDown, ChevronUp, Landmark } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile, ClientProfile, DocumentType, EstimateStatus, ExpenseRecord } from './types';
@@ -177,6 +178,9 @@ const App: React.FC = () => {
   const [documentType, setDocumentType] = useState<DocumentType>('invoice');
   const [estimateStatus, setEstimateStatus] = useState<EstimateStatus>('Draft');
   
+  // Track specific Bill ID being edited to prevent duplicates
+  const [currentBillId, setCurrentBillId] = useState<string | null>(null);
+
   const [billNumber, setBillNumber] = useState('');
   const [billDate, setBillDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('Pending');
@@ -289,13 +293,18 @@ const App: React.FC = () => {
     setAccess(checkSubscriptionAccess());
     setProfiles(getProfiles());
     setClientProfiles(getClientProfiles());
-    const draft = loadDraft();
+    const draft: any = loadDraft(); // Type cast for originalId property
     const history = getHistory();
     setHistoryItems(history);
     setTrashItems(getTrash());
     let nextBillNum = generateNextBillNumber(history, documentType);
 
     if (draft) {
+      // Restore ID if draft was editing an existing bill
+      if (draft.id && draft.id !== 'draft') {
+          setCurrentBillId(draft.id);
+      }
+
       setDocumentType(draft.type || 'invoice');
       setEstimateStatus(draft.estimateStatus || 'Draft');
       setContractor({
@@ -354,8 +363,18 @@ const App: React.FC = () => {
     }
   }, [user]);
 
-  // Generate Document Number automatically when switching types
+  // Handle Document Type Switch
   useEffect(() => {
+      // If we are switching types (Invoice <-> Estimate), we are effectively creating a new document context
+      // We should detach from the current ID to prevent overwriting the previous document type
+      if (currentBillId) {
+          const history = getHistory();
+          const currentRecord = history.find(h => h.id === currentBillId);
+          if (currentRecord && (currentRecord.type || 'invoice') !== documentType) {
+              setCurrentBillId(null); // Detach ID, next save will be new
+          }
+      }
+
       const history = getHistory();
       setBillNumber(generateNextBillNumber(history, documentType));
   }, [documentType]);
@@ -377,16 +396,19 @@ const App: React.FC = () => {
         advanceAmount: '', 
         payments,
         expenses,
-        disclaimer
+        disclaimer,
+        originalId: currentBillId // Persist current ID in draft
       };
       saveDraft(billData);
-      const history = getHistory();
-      const existingIndex = history.findIndex(b => b.billNumber === billNumber);
-      if (existingIndex >= 0) {
-         saveToHistory(billData);
+      
+      // Auto-save to history IF we are editing an existing record
+      // This prevents "Ghost Drafts" that don't match the history
+      if (currentBillId) {
+         saveToHistory(billData, currentBillId);
+         setHistoryItems(getHistory());
       }
     }
-  }, [items, client, contractor, gstEnabled, gstRate, billNumber, billDate, paymentStatus, payments, expenses, disclaimer, user, documentType, estimateStatus]);
+  }, [items, client, contractor, gstEnabled, gstRate, billNumber, billDate, paymentStatus, payments, expenses, disclaimer, user, documentType, estimateStatus, currentBillId]);
 
   // Determine if the current business category requires detailed dimension inputs (L x W x H)
   const isConstructionMode = useMemo(() => {
@@ -724,7 +746,7 @@ const App: React.FC = () => {
   }, [items, gstEnabled, gstRate, payments]);
 
   const handleSaveBill = () => {
-    saveToHistory({
+    const savedBill = saveToHistory({
       type: documentType,
       estimateStatus: documentType === 'estimate' ? estimateStatus : undefined,
       billNumber,
@@ -739,7 +761,11 @@ const App: React.FC = () => {
       payments,
       expenses,
       disclaimer
-    });
+    }, currentBillId);
+    
+    // IMPORTANT: Update current ID to lock onto this saved record
+    setCurrentBillId(savedBill.id);
+    
     setHistoryItems(getHistory());
     showToast(documentType === 'invoice' ? t.billSaved : t.estimateSaved);
   };
@@ -748,6 +774,7 @@ const App: React.FC = () => {
      if (items.length > 0 && !window.confirm("Start new document? Unsaved changes will be lost.")) {
         return;
      }
+     setCurrentBillId(null); // Clear ID to start fresh
      setClient({ name: '', phone: '', address: '' });
      setItems([]);
      setPayments([]);
@@ -761,6 +788,7 @@ const App: React.FC = () => {
   };
 
   const handleLoadBill = (bill: SavedBillData) => {
+    setCurrentBillId(bill.id); // Track this specific bill ID
     setDocumentType(bill.type || 'invoice');
     setEstimateStatus(bill.estimateStatus || 'Draft');
     setBillNumber(bill.billNumber || '');
@@ -804,7 +832,13 @@ const App: React.FC = () => {
     showToast(t.loadDraft);
   };
 
-  const handleDeleteBill = (id: string) => { deleteFromHistory(id); setHistoryItems(getHistory()); setTrashItems(getTrash()); showToast("Moved to trash"); };
+  const handleDeleteBill = (id: string) => { 
+      deleteFromHistory(id); 
+      setHistoryItems(getHistory()); 
+      setTrashItems(getTrash()); 
+      if (currentBillId === id) setCurrentBillId(null);
+      showToast("Moved to trash"); 
+  };
   const handleRestoreBill = (id: string) => { restoreFromTrash(id); setHistoryItems(getHistory()); setTrashItems(getTrash()); showToast("Restored"); };
   const handlePermanentDelete = (id: string) => { permanentDelete(id); setTrashItems(getTrash()); showToast("Deleted forever"); };
   const handleUpdateHistoryStatus = (id: string, status: PaymentStatus) => { updateBillStatus(id, status); setHistoryItems(getHistory()); };
@@ -824,12 +858,11 @@ const App: React.FC = () => {
       handleLoadBill(newInvoice);
   };
 
-  // Profile Management Logic - IMPROVED WITH PROMPT
+  // ... (Rest of logic remains identical)
   const handleSaveProfile = () => { 
       let saveMode: 'auto' | 'update' | 'create' = 'auto';
       let targetId = selectedProfileId;
 
-      // 1. If we have a profile loaded, check for major changes like Category
       if (selectedProfileId) {
           const original = profiles.find(p => p.id === selectedProfileId);
           if (original && original.details.businessCategory !== contractor.businessCategory) {
@@ -860,7 +893,6 @@ const App: React.FC = () => {
       if (profile) { 
           setContractor(profile.details); 
           setSelectedProfileId(id);
-          // Auto enable if bank details exist
           const hasBank = !!(profile.details.bankDetails?.accountNumber || profile.details.upiQrCode);
           setIncludeBankDetails(hasBank);
           showToast("Profile loaded"); 
@@ -884,7 +916,6 @@ const App: React.FC = () => {
       text += `\n*Total: ₹${totals.grandTotal.toFixed(2)}*`;
       if (totals.advance > 0 && documentType === 'invoice') text += `\nPaid: ₹${totals.advance.toFixed(2)}\nBalance: ₹${totals.balance.toFixed(2)}`;
       
-      // Only show UPI if bank details are included
       if (includeBankDetails && contractor.bankDetails?.upiId && documentType === 'invoice') {
           text += `\n\nPay via UPI: ${contractor.bankDetails.upiId}`;
       }
@@ -897,7 +928,6 @@ const App: React.FC = () => {
       const fileName = `${documentType === 'invoice' ? 'Bill' : 'Estimate'}_${safeBillNum}.${type === 'pdf' ? 'pdf' : 'xlsx'}`; 
       let blob: Blob;
       
-      // Filter contractor details based on toggle
       const finalContractor = {
           ...contractor,
           bankDetails: includeBankDetails ? contractor.bankDetails : undefined,
@@ -914,7 +944,6 @@ const App: React.FC = () => {
   };
   
   const handleDownloadFile = (type: 'pdf' | 'excel', status: PaymentStatus) => { 
-      // Filter contractor details based on toggle
       const finalContractor = {
           ...contractor,
           bankDetails: includeBankDetails ? contractor.bankDetails : undefined,
@@ -927,8 +956,16 @@ const App: React.FC = () => {
       setIsShareModalOpen(false); 
   };
   
-  const handleHistoryDownloadPdf = (bill: SavedBillData) => { /* Reuse logic... */ }; // (Keep implementation or inline)
-  const handleHistoryDownloadExcel = (bill: SavedBillData) => { /* Reuse logic... */ };
+  const handleHistoryDownloadPdf = (bill: SavedBillData) => { 
+      const finalContractor = bill.contractor;
+      const tts = { subTotal: 0, gst: 0, grandTotal: 0, balance: 0, advance: 0 }; 
+      // Simplified regen... better to reuse logic or rely on generatePDF internal calc
+      // Note: The HistoryModal handler typically downloads straight from stored data
+      generatePDF(bill.items, finalContractor, bill.client, bill.gstEnabled, bill.gstRate || 18, bill.payments, bill.disclaimer, bill.billNumber, bill.paymentStatus, tts, bill.billDate || '', bill.type || 'invoice', false);
+  };
+  const handleHistoryDownloadExcel = (bill: SavedBillData) => { 
+      generateExcel(bill.items, bill.contractor, bill.client, bill.gstEnabled, bill.gstRate || 18, bill.payments, bill.disclaimer, bill.billNumber, bill.paymentStatus, bill.billDate || '', bill.type || 'invoice', false);
+  };
 
   const getPlanDetails = () => { if (access.isTrial) return { name: "Free Trial", expiry: `${access.daysLeft} days remaining` }; const plan = SUBSCRIPTION_PLANS.find(p => p.id === user?.planId); const date = user?.subscriptionEndDate ? new Date(user.subscriptionEndDate).toLocaleDateString() : ""; return { name: plan ? plan.name : "Unknown Plan", expiry: `Valid until ${date}` }; };
   const isVolumetric = ['cu.ft', 'cu.mt', 'brass'].includes(currentItem.unit || '');

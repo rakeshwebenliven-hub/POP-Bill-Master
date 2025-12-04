@@ -9,10 +9,10 @@ const CLIENT_PROFILES_KEY = 'pop_client_profiles';
 
 // --- Drafts ---
 
-export const saveDraft = (data: Omit<SavedBillData, 'id' | 'timestamp'>) => {
-  const draft: SavedBillData = {
+export const saveDraft = (data: Omit<SavedBillData, 'id' | 'timestamp'> & { originalId?: string | null }) => {
+  const draft: any = {
     ...data,
-    id: 'draft',
+    id: data.originalId || 'draft', // Persist original ID if we are editing a saved record
     timestamp: Date.now()
   };
   localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -25,23 +25,28 @@ export const loadDraft = (): SavedBillData | null => {
 
 // --- History ---
 
-export const saveToHistory = (data: Omit<SavedBillData, 'id' | 'timestamp'>): SavedBillData => {
+export const saveToHistory = (
+  data: Omit<SavedBillData, 'id' | 'timestamp'>, 
+  currentId?: string | null
+): SavedBillData => {
   const history = getHistory();
-  
-  // 1. Try to find by Bill Number AND Type (to distinguish Est-001 from Inv-001)
-  let existingIndex = history.findIndex(b => 
-    b.billNumber && data.billNumber &&
-    b.billNumber.trim().toLowerCase() === data.billNumber.trim().toLowerCase() &&
-    (b.type || 'invoice') === (data.type || 'invoice')
-  );
+  let existingIndex = -1;
 
-  // 2. Fallback: If Bill Number not found or empty, check by Client Name AND Type
-  if (existingIndex === -1 && data.client.name) {
+  // 1. Priority: Match by Explicit ID (if editing an existing record)
+  if (currentId) {
+    existingIndex = history.findIndex(b => b.id === currentId);
+  }
+
+  // 2. Secondary: Match by Bill Number AND Type (Prevent duplicates if ID lost/not provided)
+  // This handles case where user manually types an existing bill number
+  if (existingIndex === -1 && data.billNumber) {
     existingIndex = history.findIndex(b => 
-      b.client.name.trim().toLowerCase() === data.client.name.trim().toLowerCase() &&
+      b.billNumber.trim().toLowerCase() === data.billNumber.trim().toLowerCase() &&
       (b.type || 'invoice') === (data.type || 'invoice')
     );
   }
+
+  // REMOVED: Fallback by Client Name. This was causing new bills for same client to overwrite old ones.
 
   if (existingIndex >= 0) {
     // Update existing bill
