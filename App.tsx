@@ -92,13 +92,11 @@ export const App = () => {
 
   // --- Init ---
   useEffect(() => {
-    // Theme Check
     if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       setIsDarkMode(true);
       document.documentElement.classList.add('dark');
     }
 
-    // User Check
     const savedUser = localStorage.getItem('pop_user_profile');
     if (savedUser) {
       const u = JSON.parse(savedUser);
@@ -106,7 +104,6 @@ export const App = () => {
       setAccess(checkSubscriptionAccess());
     }
 
-    // Load Draft
     const draft = loadDraft();
     if (draft) {
       loadBillData(draft);
@@ -125,7 +122,6 @@ export const App = () => {
     if (user) setAccess(checkSubscriptionAccess());
   }, [user]);
 
-  // Auto-Save
   useEffect(() => {
     if (!user) return;
     const dataToSave = {
@@ -207,7 +203,7 @@ export const App = () => {
       setItems([...items, newItem]);
       showToast("Item Added");
     }
-    // Keep Unit/Floor for speed, reset others
+    // Keep unit/floor context for speed
     setCurrentItem({ ...currentItem, description: '', amount: 0, length: 0, width: 0, height: 0, quantity: 1, rate: 0 });
   };
 
@@ -293,7 +289,6 @@ export const App = () => {
     }
   };
 
-  // --- Logic Helpers ---
   const isConstructionMode = useMemo(() => {
     const cat = contractor.businessCategory || '';
     return cat.includes('Contractor') || cat.includes('Builder') || cat.includes('Architect') || cat.includes('Fabrication');
@@ -312,7 +307,6 @@ export const App = () => {
     return ['nos', 'sq.ft'];
   };
 
-  // --- Render ---
   if (!user) {
     return (
       <Suspense fallback={<div className="h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-600"/></div>}>
