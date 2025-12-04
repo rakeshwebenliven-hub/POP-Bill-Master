@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
-import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, LayoutList, Contact, FileCheck, Wallet, PieChart, ChevronLeft, Menu, Settings, Check, ArrowRight, Home, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, LayoutList, Contact, FileCheck, Wallet, PieChart, ChevronLeft, Menu, Settings, Check, ArrowRight, Home, ChevronDown, ChevronUp, Landmark } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile, ClientProfile, DocumentType, EstimateStatus, ExpenseRecord } from './types';
 import { APP_TEXT, SUBSCRIPTION_PLANS, CONSTRUCTION_UNITS, AUTO_SUGGEST_ITEMS, BUSINESS_CATEGORIES } from './constants';
 import { generateExcel } from './services/excelService';
@@ -203,6 +203,8 @@ const App: React.FC = () => {
     upiQrCode: ''
   });
 
+  const [includeBankDetails, setIncludeBankDetails] = useState(true);
+
   const [profiles, setProfiles] = useState<ContractorProfile[]>([]);
   const [clientProfiles, setClientProfiles] = useState<ClientProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState('');
@@ -302,6 +304,10 @@ const App: React.FC = () => {
             holderName: '', bankName: '', accountNumber: '', ifscCode: '', upiId: '', branchAddress: ''
          }
       });
+      // Auto-enable bank details if saved info exists
+      const hasBank = !!(draft.contractor.bankDetails?.accountNumber || draft.contractor.upiQrCode);
+      setIncludeBankDetails(hasBank);
+
       setClient(draft.client);
       setItems(draft.items);
       setGstEnabled(draft.gstEnabled);
@@ -336,6 +342,10 @@ const App: React.FC = () => {
                 holderName: '', bankName: '', accountNumber: '', ifscCode: '', upiId: '', branchAddress: ''
              }
           });
+          // Auto-enable bank details if saved info exists
+          const hasBank = !!(lastBill.contractor.bankDetails?.accountNumber || lastBill.contractor.upiQrCode);
+          setIncludeBankDetails(hasBank);
+
           setGstEnabled(lastBill.gstEnabled);
           setGstRate(lastBill.gstRate || 18);
           setDisclaimer(lastBill.disclaimer || '');
@@ -762,6 +772,10 @@ const App: React.FC = () => {
           holderName: '', bankName: '', accountNumber: '', ifscCode: '', upiId: '', branchAddress: ''
        }
     });
+    // Auto enable if bank details exist
+    const hasBank = !!(bill.contractor.bankDetails?.accountNumber || bill.contractor.upiQrCode);
+    setIncludeBankDetails(hasBank);
+
     setClient(bill.client);
     setItems(bill.items);
     setGstEnabled(bill.gstEnabled);
@@ -826,15 +840,11 @@ const App: React.FC = () => {
               if (confirmUpdate) {
                   saveMode = 'update';
               } else {
-                  // User chose Cancel -> implies Create New. 
-                  // But we should ask if they actually want to create new or if they cancelled by mistake.
-                  // For better UX, we'll assume Cancel means "Don't update existing", so we Create New.
                   saveMode = 'create';
-                  targetId = ''; // Clear ID to force creation
+                  targetId = ''; 
                   if (!window.confirm("Saving as a NEW profile. Continue?")) return;
               }
           } else {
-              // Same category, normal update flow (likely 'auto' will handle by name, or we can force 'update')
               saveMode = 'update';
           }
       }
@@ -845,7 +855,17 @@ const App: React.FC = () => {
       showToast(t.profileSaved); 
   };
 
-  const handleLoadProfile = (id: string) => { const profile = profiles.find(p => p.id === id); if (profile) { setContractor(profile.details); setSelectedProfileId(id); showToast("Profile loaded"); } };
+  const handleLoadProfile = (id: string) => { 
+      const profile = profiles.find(p => p.id === id); 
+      if (profile) { 
+          setContractor(profile.details); 
+          setSelectedProfileId(id);
+          // Auto enable if bank details exist
+          const hasBank = !!(profile.details.bankDetails?.accountNumber || profile.details.upiQrCode);
+          setIncludeBankDetails(hasBank);
+          showToast("Profile loaded"); 
+      } 
+  };
   const handleNewContractorProfile = () => { setContractor({ name: '', companyName: '', gstin: '', phone: '', email: '', website: '', socialLinks: [], accountDetails: '', bankDetails: { holderName: '', bankName: '', accountNumber: '', ifscCode: '', upiId: '', branchAddress: '' }, logo: '', upiQrCode: '' }); setSelectedProfileId(''); showToast("Form cleared"); };
   const handleDeleteProfile = (id: string) => { if(window.confirm(t.confirmDelete)) { deleteProfile(id); setProfiles(prev => prev.filter(p => p.id !== id)); if (selectedProfileId === id) setSelectedProfileId(''); showToast("Profile deleted"); } };
   const handleSaveClientProfile = () => { if (!client.name) { showToast("Client name is required", 'error'); return; } const newProfile = saveClientProfile(client, selectedProfileId); setClientProfiles(getClientProfiles()); setSelectedClientId(newProfile.id); showToast(t.clientSaved); };
@@ -863,19 +883,50 @@ const App: React.FC = () => {
       items.forEach((item, idx) => { text += `${idx+1}. ${item.description} - ${item.quantity} ${item.unit} x ${item.rate} = ₹${item.amount.toFixed(0)}\n`; });
       text += `\n*Total: ₹${totals.grandTotal.toFixed(2)}*`;
       if (totals.advance > 0 && documentType === 'invoice') text += `\nPaid: ₹${totals.advance.toFixed(2)}\nBalance: ₹${totals.balance.toFixed(2)}`;
-      if (contractor.bankDetails?.upiId && documentType === 'invoice') text += `\n\nPay via UPI: ${contractor.bankDetails.upiId}`;
+      
+      // Only show UPI if bank details are included
+      if (includeBankDetails && contractor.bankDetails?.upiId && documentType === 'invoice') {
+          text += `\n\nPay via UPI: ${contractor.bankDetails.upiId}`;
+      }
       return text;
   };
   const handleShareText = (status: PaymentStatus) => { const text = generateBillText(); if (navigator.share) navigator.share({ title: 'Bill Summary', text }).catch(() => {}); else window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank'); };
+  
   const handleShareFile = async (type: 'pdf' | 'excel', status: PaymentStatus) => { 
-      const safeBillNum = (billNumber || 'Draft').replace(/[^a-z0-9]/gi, '_'); const fileName = `${documentType === 'invoice' ? 'Bill' : 'Estimate'}_${safeBillNum}.${type === 'pdf' ? 'pdf' : 'xlsx'}`; let blob: Blob;
+      const safeBillNum = (billNumber || 'Draft').replace(/[^a-z0-9]/gi, '_'); 
+      const fileName = `${documentType === 'invoice' ? 'Bill' : 'Estimate'}_${safeBillNum}.${type === 'pdf' ? 'pdf' : 'xlsx'}`; 
+      let blob: Blob;
+      
+      // Filter contractor details based on toggle
+      const finalContractor = {
+          ...contractor,
+          bankDetails: includeBankDetails ? contractor.bankDetails : undefined,
+          accountDetails: includeBankDetails ? contractor.accountDetails : undefined,
+          upiQrCode: includeBankDetails ? contractor.upiQrCode : ''
+      };
+
       // @ts-ignore
-      if (type === 'pdf') blob = generatePDF(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, documentType, true);
+      if (type === 'pdf') blob = generatePDF(items, finalContractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, documentType, true);
       // @ts-ignore
-      else blob = generateExcel(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, billDate, documentType, true);
+      else blob = generateExcel(items, finalContractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, billDate, documentType, true);
+      
       if (navigator.canShare && navigator.canShare({ files: [new File([blob], fileName, { type: blob.type })] })) { try { await navigator.share({ files: [new File([blob], fileName, { type: blob.type })], title: 'Share Bill', text: `Here is the ${documentType} ${fileName}` }); } catch (e) { console.error("Share failed", e); } } else { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fileName; a.click(); showToast(`Downloaded ${fileName}`); } setIsShareModalOpen(false); 
   };
-  const handleDownloadFile = (type: 'pdf' | 'excel', status: PaymentStatus) => { if (type === 'pdf') generatePDF(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, documentType, false); else generateExcel(items, contractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, billDate, documentType, false); setIsShareModalOpen(false); };
+  
+  const handleDownloadFile = (type: 'pdf' | 'excel', status: PaymentStatus) => { 
+      // Filter contractor details based on toggle
+      const finalContractor = {
+          ...contractor,
+          bankDetails: includeBankDetails ? contractor.bankDetails : undefined,
+          accountDetails: includeBankDetails ? contractor.accountDetails : undefined,
+          upiQrCode: includeBankDetails ? contractor.upiQrCode : ''
+      };
+
+      if (type === 'pdf') generatePDF(items, finalContractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, documentType, false); 
+      else generateExcel(items, finalContractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, billDate, documentType, false); 
+      setIsShareModalOpen(false); 
+  };
+  
   const handleHistoryDownloadPdf = (bill: SavedBillData) => { /* Reuse logic... */ }; // (Keep implementation or inline)
   const handleHistoryDownloadExcel = (bill: SavedBillData) => { /* Reuse logic... */ };
 
@@ -1043,7 +1094,6 @@ const App: React.FC = () => {
                          
                          {isAddItemOpen && (
                             <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-                               {/* (Insert existing optimized Grid Layout here) */}
                                <div className="grid grid-cols-12 gap-3 mb-4">
                                   {/* Unit Selection */}
                                   <div className={`col-span-12 ${showFloorInput ? 'sm:col-span-2' : 'sm:col-span-3'}`}>
@@ -1149,6 +1199,45 @@ const App: React.FC = () => {
                             <div className="bg-indigo-600 text-white p-3 rounded-xl flex justify-between font-bold"><span>Balance Due</span><span>₹{totals.balance.toFixed(2)}</span></div>
                          </div>
                       )}
+
+                      {/* Optional Bank Details Section */}
+                      <div className="card p-4 space-y-4 border border-slate-200 dark:border-slate-800">
+                          <div className="flex items-center justify-between">
+                              <h3 className="font-bold text-sm flex items-center gap-2"><Landmark className="w-4 h-4 text-indigo-500" /> Bank Account Details</h3>
+                              <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" checked={includeBankDetails} onChange={e => setIncludeBankDetails(e.target.checked)} className="sr-only peer" />
+                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                              </label>
+                          </div>
+                          
+                          {includeBankDetails && (
+                              <div className="grid grid-cols-1 gap-3 pt-2 animate-in slide-in-from-top-2">
+                                  <div className="grid grid-cols-2 gap-3">
+                                      <div><label className="text-[10px] text-slate-400 font-bold block mb-1">BANK NAME</label><input type="text" placeholder="Bank" value={contractor.bankDetails?.bankName} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, bankName: e.target.value}})} className="input-field text-xs p-2" /></div>
+                                      <div><label className="text-[10px] text-slate-400 font-bold block mb-1">IFSC CODE</label><input type="text" placeholder="IFSC" value={contractor.bankDetails?.ifscCode} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, ifscCode: e.target.value.toUpperCase()}})} className="input-field text-xs p-2 uppercase" /></div>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-3">
+                                      <div><label className="text-[10px] text-slate-400 font-bold block mb-1">ACCOUNT NO</label><input type="text" placeholder="Acc No" value={contractor.bankDetails?.accountNumber} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, accountNumber: e.target.value}})} className="input-field text-xs p-2" /></div>
+                                      <div><label className="text-[10px] text-slate-400 font-bold block mb-1">UPI ID</label><input type="text" placeholder="UPI ID" value={contractor.bankDetails?.upiId} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, upiId: e.target.value}})} className="input-field text-xs p-2" /></div>
+                                  </div>
+                                  <div><label className="text-[10px] text-slate-400 font-bold block mb-1">ACCOUNT HOLDER</label><input type="text" placeholder="Holder Name" value={contractor.bankDetails?.holderName} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, holderName: e.target.value}})} className="input-field text-xs p-2" /></div>
+                                  
+                                  {/* Payment QR Upload */}
+                                  <div className="flex items-center gap-3 mt-2 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                                      <div className="w-12 h-12 bg-white dark:bg-slate-900 rounded-lg flex items-center justify-center border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                          {contractor.upiQrCode ? <img src={contractor.upiQrCode} alt="QR" className="w-full h-full object-cover" /> : <QrCode className="w-6 h-6 text-slate-300" />}
+                                      </div>
+                                      <div className="flex-1">
+                                          <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Payment QR Code</p>
+                                          <label className="text-[10px] text-indigo-600 font-bold cursor-pointer hover:underline">
+                                              Upload Image <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'upiQrCode')} />
+                                          </label>
+                                          {contractor.upiQrCode && <button onClick={() => setContractor({...contractor, upiQrCode: ''})} className="ml-2 text-[10px] text-red-500 font-bold hover:underline">Remove</button>}
+                                      </div>
+                                  </div>
+                              </div>
+                          )}
+                      </div>
 
                       <div className="card p-4">
                          <label className="text-xs font-bold text-slate-400 block mb-2">{t.disclaimer}</label>
