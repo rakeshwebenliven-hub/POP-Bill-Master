@@ -543,7 +543,8 @@ const App: React.FC = () => {
   };
 
   const validateAndNext = (nextStep: CreateStep) => {
-      if (nextStep === 'items') {
+      // 1. Basic Party Validation (Required for Items and Summary)
+      if (nextStep === 'items' || nextStep === 'summary') {
           if (!contractor.companyName?.trim() && !contractor.name?.trim()) {
               showToast("Please fill My Business Details", 'error');
               return;
@@ -553,6 +554,15 @@ const App: React.FC = () => {
               return;
           }
       }
+
+      // 2. Items Validation (Required for Summary)
+      if (nextStep === 'summary') {
+          if (items.length === 0) {
+              showToast("Please add at least one item before proceeding to summary", 'error');
+              return;
+          }
+      }
+
       setCreateStep(nextStep);
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -1089,7 +1099,7 @@ const App: React.FC = () => {
                          {items.length === 0 && <div className="text-center py-10 text-slate-400 text-sm font-medium">No items yet.<br/>Tap the Mic or Add button above.</div>}
                       </div>
 
-                      <button onClick={() => validateAndNext('summary')} disabled={items.length === 0} className="w-full btn-primary py-4 text-lg shadow-xl flex items-center justify-center gap-2 mt-4 disabled:opacity-50">Next: Summary <ArrowRight className="w-5 h-5" /></button>
+                      <button onClick={() => validateAndNext('summary')} disabled={items.length === 0} className="w-full btn-primary py-4 text-lg shadow-xl flex items-center justify-center gap-2 mt-4 disabled:opacity-50 disabled:cursor-not-allowed">Next: Summary <ArrowRight className="w-5 h-5" /></button>
                    </div>
                 )}
 
