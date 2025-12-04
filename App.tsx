@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { 
   Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, 
@@ -5,7 +6,7 @@ import {
   FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, 
   RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, 
   Wallet, PieChart, Menu, ArrowRight, ChevronDown, ChevronUp, 
-  Landmark
+  Landmark, Printer
 } from 'lucide-react';
 
 import { 
@@ -20,7 +21,7 @@ import {
   saveProfile, getProfiles, saveClientProfile, getClientProfiles, 
   deleteFromHistory, updateBillStatus, updateEstimateStatus 
 } from './services/storageService';
-import { generatePDF } from './services/pdfService';
+import { generatePDF, printPDF } from './services/pdfService';
 import { generateExcel } from './services/excelService';
 import { checkSubscriptionAccess, logoutUser } from './services/authService';
 import { backupToDrive, restoreFromDrive } from './services/googleDriveService';
@@ -66,6 +67,7 @@ export const App = () => {
   });
   const [isAddItemOpen, setIsAddItemOpen] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Financials
   const [gstEnabled, setGstEnabled] = useState(false);
@@ -133,7 +135,7 @@ export const App = () => {
     if (currentBillId) saveToHistory(dataToSave, currentBillId);
   }, [billNumber, billDate, contractor, client, items, gstEnabled, gstRate, payments, expenses, disclaimer, documentType, currentBillId, user]);
 
-  // --- Helpers ---
+  // --- Helpers & Logic ---
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
@@ -164,7 +166,6 @@ export const App = () => {
     return 'INV-001';
   };
 
-  // --- Calculations ---
   const calculateItemArea = (l: number, w: number, h: number, unit: string, qty: number): number => {
     if (['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(unit)) return l * w;
     if (['cu.ft', 'cu.mt'].includes(unit)) return l * w * (h || 0);
@@ -184,7 +185,34 @@ export const App = () => {
     return parseFloat((val * rate).toFixed(2));
   };
 
-  // --- Actions ---
+  const getTotals = () => {
+    const subTotal = items.reduce((s, i) => s + i.amount, 0);
+    const gst = gstEnabled ? subTotal * (gstRate / 100) : 0;
+    const grandTotal = subTotal + gst;
+    const totalAdvance = payments.reduce((s, p) => s + p.amount, 0);
+    const balance = grandTotal - totalAdvance;
+    return { subTotal, gst, grandTotal, balance, advance: totalAdvance };
+  };
+
+  const isConstructionMode = useMemo(() => {
+    const cat = contractor.businessCategory || '';
+    return cat.includes('Contractor') || cat.includes('Builder') || cat.includes('Architect') || cat.includes('Fabrication');
+  }, [contractor.businessCategory]);
+
+  const showFloorInput = useMemo(() => {
+    const cat = (contractor.businessCategory || '').toLowerCase();
+    const kws = ['civil', 'pop', 'paint', 'electric', 'plumb', 'hvac', 'interior', 'architect', 'real estate'];
+    return kws.some(k => cat.includes(k));
+  }, [contractor.businessCategory]);
+
+  const getPriorityUnits = () => {
+    const cat = (contractor.businessCategory || '').toLowerCase();
+    if (cat.includes('retail') || cat.includes('shop')) return ['pcs', 'nos', 'pkt', 'box', 'set', 'kg', 'ltr'];
+    if (cat.includes('civil') || cat.includes('pop')) return ['sq.ft', 'brass', 'cu.ft', 'rft', 'nos', 'bag'];
+    return ['nos', 'sq.ft'];
+  };
+
+  // --- Handlers ---
   const handleAddItem = () => {
     if (!currentItem.description) return showToast("Description required", 'error');
     if (!currentItem.rate && currentItem.rate !== 0) return showToast("Rate required", 'error');
@@ -203,7 +231,6 @@ export const App = () => {
       setItems([...items, newItem]);
       showToast("Item Added");
     }
-    // Keep unit/floor context for speed
     setCurrentItem({ ...currentItem, description: '', amount: 0, length: 0, width: 0, height: 0, quantity: 1, rate: 0 });
   };
 
@@ -259,15 +286,6 @@ export const App = () => {
      setCreateStep(targetStep);
   };
 
-  const getTotals = () => {
-    const subTotal = items.reduce((s, i) => s + i.amount, 0);
-    const gst = gstEnabled ? subTotal * (gstRate / 100) : 0;
-    const grandTotal = subTotal + gst;
-    const totalAdvance = payments.reduce((s, p) => s + p.amount, 0);
-    const balance = grandTotal - totalAdvance;
-    return { subTotal, gst, grandTotal, balance, advance: totalAdvance };
-  };
-
   const handleExport = (type: 'pdf' | 'excel', status: PaymentStatus, action: 'share' | 'download') => {
     const totals = getTotals();
     const finalContractor = { ...contractor, bankDetails: includeBankDetails ? contractor.bankDetails : undefined };
@@ -289,24 +307,13 @@ export const App = () => {
     }
   };
 
-  const isConstructionMode = useMemo(() => {
-    const cat = contractor.businessCategory || '';
-    return cat.includes('Contractor') || cat.includes('Builder') || cat.includes('Architect') || cat.includes('Fabrication');
-  }, [contractor.businessCategory]);
-
-  const showFloorInput = useMemo(() => {
-    const cat = (contractor.businessCategory || '').toLowerCase();
-    const kws = ['civil', 'pop', 'paint', 'electric', 'plumb', 'hvac', 'interior', 'architect', 'real estate'];
-    return kws.some(k => cat.includes(k));
-  }, [contractor.businessCategory]);
-
-  const getPriorityUnits = () => {
-    const cat = (contractor.businessCategory || '').toLowerCase();
-    if (cat.includes('retail') || cat.includes('shop')) return ['pcs', 'nos', 'pkt', 'box', 'set', 'kg', 'ltr'];
-    if (cat.includes('civil') || cat.includes('pop')) return ['sq.ft', 'brass', 'cu.ft', 'rft', 'nos', 'bag'];
-    return ['nos', 'sq.ft'];
+  const handlePrint = (status: PaymentStatus) => {
+      const totals = getTotals();
+      const finalContractor = { ...contractor, bankDetails: includeBankDetails ? contractor.bankDetails : undefined };
+      printPDF(items, finalContractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, documentType);
   };
 
+  // --- Render ---
   if (!user) {
     return (
       <Suspense fallback={<div className="h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-600"/></div>}>
@@ -330,7 +337,6 @@ export const App = () => {
 
   return (
     <div className={`min-h-screen pb-20 font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200 ${documentType === 'estimate' ? 'bg-amber-50/30 dark:bg-slate-950' : 'bg-slate-50 dark:bg-slate-950'}`}>
-      
       {toast && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-full shadow-xl flex items-center gap-2 animate-slide-up ${toast.type === 'success' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-red-500 text-white'}`}>
           {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -339,11 +345,9 @@ export const App = () => {
       )}
 
       <main className="max-w-5xl mx-auto min-h-[90vh]">
-        
         {/* VIEW: CREATE */}
         {currentView === 'create' && (
           <div className="animate-in fade-in duration-300">
-             
              {/* Header */}
              <div className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-b border-slate-200 dark:border-slate-800 safe-area-top">
                 <div className="max-w-5xl mx-auto px-4 py-3">
@@ -352,7 +356,6 @@ export const App = () => {
                          {documentType === 'estimate' ? <FilePlus className="w-5 h-5 text-amber-600" /> : <FileText className="w-5 h-5 text-indigo-600" />}
                          {documentType === 'invoice' ? 'New Invoice' : 'New Estimate'}
                       </h1>
-                      
                       <div className="flex items-center gap-2">
                          <div className="hidden md:flex gap-2 mr-4 border-r border-slate-200 dark:border-slate-800 pr-4">
                             <button onClick={() => setCurrentView('create')} className="px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg">Create</button>
@@ -367,7 +370,6 @@ export const App = () => {
                          <button onClick={() => setIsProfileModalOpen(true)} className="p-1 bg-indigo-100 dark:bg-indigo-900 rounded-full text-indigo-600 dark:text-indigo-300"><User className="w-5 h-5" /></button>
                       </div>
                    </div>
-                   
                    <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl relative">
                       <div className={`absolute top-1 bottom-1 w-1/3 bg-white dark:bg-slate-700 rounded-lg shadow-sm transition-all duration-300 ease-in-out ${createStep === 'parties' ? 'left-1' : createStep === 'items' ? 'left-[33.33%]' : 'left-[66.66%]'}`}></div>
                       <button onClick={() => setCreateStep('parties')} className={`flex-1 relative z-10 py-2 text-xs font-bold text-center transition-colors ${createStep === 'parties' ? 'text-indigo-600 dark:text-white' : 'text-slate-500'}`}>1. {t.stepParties}</button>
@@ -378,7 +380,6 @@ export const App = () => {
              </div>
 
              <div className="p-4 space-y-6">
-                
                 {/* STEP 1: PARTIES */}
                 {createStep === 'parties' && (
                    <div className="space-y-6 animate-slide-up">
@@ -392,6 +393,7 @@ export const App = () => {
                       </div>
 
                       <div className="grid md:grid-cols-2 gap-6">
+                        {/* Contractor Card */}
                         <div className="card p-5 space-y-4">
                            <div className="flex justify-between items-center">
                               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Building2 className="w-5 h-5 text-indigo-500" /> {t.contractorDetails}</h3>
@@ -423,6 +425,7 @@ export const App = () => {
                            </div>
                         </div>
 
+                        {/* Client Card */}
                         <div className="card p-5 space-y-4">
                            <div className="flex justify-between items-center">
                               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><User className="w-5 h-5 text-indigo-500" /> {t.clientDetails}</h3>
@@ -598,12 +601,12 @@ export const App = () => {
                          <div className="flex items-center gap-2 mb-4"><input type="checkbox" checked={includeBankDetails} onChange={e => setIncludeBankDetails(e.target.checked)} className="w-5 h-5 accent-indigo-600" /><h3 className="font-bold flex items-center gap-2"><Landmark className="w-5 h-5 text-slate-600" /> Include Bank Details</h3></div>
                          {includeBankDetails && (
                             <div className="space-y-3 animate-fade-in grid md:grid-cols-2 gap-4">
-                               <div className="md:col-span-2"><input type="text" placeholder="Account Name" value={contractor.bankDetails?.holderName} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, holderName: e.target.value}})} className="input-field" /></div>
-                               <input type="text" placeholder="Account No" value={contractor.bankDetails?.accountNumber} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, accountNumber: e.target.value}})} className="input-field" />
-                               <input type="text" placeholder="IFSC Code" value={contractor.bankDetails?.ifscCode} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, ifscCode: e.target.value.toUpperCase()}})} className="input-field" />
-                               <input type="text" placeholder="Bank Name" value={contractor.bankDetails?.bankName} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, bankName: e.target.value}})} className="input-field" />
-                               <input type="text" placeholder="UPI ID (Optional)" value={contractor.bankDetails?.upiId} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, upiId: e.target.value}})} className="input-field" />
-                               <div className="pt-2 md:col-span-2"><label className="text-xs font-bold text-slate-400 mb-2 block">Payment QR Code</label>{contractor.upiQrCode ? (<div className="relative w-24 h-24 border rounded-xl overflow-hidden"><img src={contractor.upiQrCode} className="w-full h-full object-cover" alt="QR" /><button onClick={() => setContractor({...contractor, upiQrCode: ''})} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"><X className="w-3 h-3" /></button></div>) : (<label className="w-24 h-24 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:bg-slate-50"><QrCode className="w-6 h-6 mb-1" /><span className="text-[10px]">Upload</span><input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = () => setContractor({...contractor, upiQrCode: r.result as string}); r.readAsDataURL(f); }}} /></label>)}</div>
+                                <div className="md:col-span-2"><input type="text" placeholder="Account Name" value={contractor.bankDetails?.holderName} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, holderName: e.target.value}})} className="input-field" /></div>
+                                <input type="text" placeholder="Account No" value={contractor.bankDetails?.accountNumber} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, accountNumber: e.target.value}})} className="input-field" />
+                                <input type="text" placeholder="IFSC Code" value={contractor.bankDetails?.ifscCode} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, ifscCode: e.target.value.toUpperCase()}})} className="input-field" />
+                                <input type="text" placeholder="Bank Name" value={contractor.bankDetails?.bankName} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, bankName: e.target.value}})} className="input-field" />
+                                <input type="text" placeholder="UPI ID (Optional)" value={contractor.bankDetails?.upiId} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, upiId: e.target.value}})} className="input-field" />
+                                <div className="pt-2 md:col-span-2"><label className="text-xs font-bold text-slate-400 mb-2 block">Payment QR Code</label>{contractor.upiQrCode ? (<div className="relative w-24 h-24 border rounded-xl overflow-hidden"><img src={contractor.upiQrCode} className="w-full h-full object-cover" alt="QR" /><button onClick={() => setContractor({...contractor, upiQrCode: ''})} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"><X className="w-3 h-3" /></button></div>) : (<label className="w-24 h-24 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:bg-slate-50"><QrCode className="w-6 h-6 mb-1" /><span className="text-[10px]">Upload</span><input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = () => setContractor({...contractor, upiQrCode: r.result as string}); r.readAsDataURL(f); }}} /></label>)}</div>
                             </div>
                          )}
                       </div>
@@ -636,7 +639,7 @@ export const App = () => {
       <Suspense fallback={null}>
          <VoiceEntryModal isOpen={isVoiceOpen} onClose={() => setIsVoiceOpen(false)} onConfirm={(item) => { setCurrentItem({...currentItem, ...item, amount: calculateAmount(item.length, item.width, item.height || 0, item.quantity, item.rate, item.unit)}); setIsVoiceOpen(false); }} />
          <CalculatorModal isOpen={isCalcOpen} onClose={() => setIsCalcOpen(false)} />
-         <ShareModal isOpen={isShareOpen} onClose={() => setIsShareOpen(false)} documentType={documentType} previewText={`Bill from ${contractor.companyName}`} onShareText={() => {}} onSharePdf={async (s) => handleExport('pdf', s, 'share')} onShareExcel={async (s) => handleExport('excel', s, 'share')} onDownloadPdf={(s) => handleExport('pdf', s, 'download')} onDownloadExcel={(s) => handleExport('excel', s, 'download')} />
+         <ShareModal isOpen={isShareOpen} onClose={() => setIsShareOpen(false)} documentType={documentType} previewText={`Bill from ${contractor.companyName}`} onShareText={() => {}} onSharePdf={async (s) => handleExport('pdf', s, 'share')} onShareExcel={async (s) => handleExport('excel', s, 'share')} onDownloadPdf={(s) => handleExport('pdf', s, 'download')} onDownloadExcel={(s) => handleExport('excel', s, 'download')} onPrint={handlePrint} />
          <ExpensesModal isOpen={isExpensesOpen} onClose={() => setIsExpensesOpen(false)} expenses={expenses} onAddExpense={(e) => setExpenses([...expenses, e])} onDeleteExpense={(id) => setExpenses(expenses.filter(e => e.id !== id))} onSetExpenses={(exps) => setExpenses(exps)} billTotal={getTotals().grandTotal} />
          {showSubscription && <SubscriptionPlans onSuccess={(u) => { setUser(u); setShowSubscription(false); }} onBack={() => setShowSubscription(false)} planId={user.planId || undefined} />}
       </Suspense>
