@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, AlertCircle, Image as ImageIcon, Upload, Share2, Users, QrCode, FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, LayoutList, Contact, FileCheck, Wallet, PieChart, ChevronLeft, Menu, Settings, Check, ArrowRight, Home, ChevronDown, ChevronUp, Landmark } from 'lucide-react';
 import { BillItem, ClientDetails, ContractorDetails, SavedBillData, SocialLink, SocialPlatform, ContractorProfile, PaymentStatus, PaymentRecord, ParsedBillItem, UserProfile, ClientProfile, DocumentType, EstimateStatus, ExpenseRecord } from './types';
@@ -62,14 +61,14 @@ const SwipeableItem: React.FC<SwipeableItemProps> = ({
   };
 
   return (
-    <div className="relative overflow-hidden mb-2">
+    <div className="relative overflow-hidden mb-3">
       {/* Swipe Background (Red) */}
-      <div className="absolute inset-0 bg-red-500 flex items-center justify-end px-6 rounded-xl">
+      <div className="absolute inset-0 bg-red-500 flex items-center justify-end px-6 rounded-2xl">
         <Trash2 className="w-6 h-6 text-white" />
       </div>
 
       <div 
-        className={`relative bg-white dark:bg-slate-900 p-4 border border-slate-100 dark:border-slate-800 rounded-xl shadow-sm flex justify-between items-center group ${isSwiping ? '' : 'transition-transform duration-300'}`}
+        className={`relative bg-white dark:bg-slate-900 p-4 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex justify-between items-center group ${isSwiping ? '' : 'transition-transform duration-300'}`}
         style={{ transform: `translateX(${offsetX}px)` }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -77,18 +76,19 @@ const SwipeableItem: React.FC<SwipeableItemProps> = ({
       >
           <div className="flex gap-3 w-full items-start">
               {/* Index Number */}
-              <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0 mt-1">
+              <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0 mt-0.5">
                  {index + 1}
               </div>
 
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 flex-wrap mb-1">
                   <span>{item.description}</span>
-                  {item.floor && <span className="text-[10px] uppercase font-bold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded tracking-wide">{item.floor}</span>}
+                  {item.floor && <span className="text-[10px] uppercase font-bold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded tracking-wide border border-indigo-100 dark:border-indigo-800">{item.floor}</span>}
                 </div>
+                
                 <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
                   {/* Smart Dimensions Display */}
-                  <span className="font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
+                  <span className="font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md border border-slate-100 dark:border-slate-700">
                     {['sq.ft', 'sq.mt', 'sq.yd', 'acre'].includes(item.unit) && (
                         <span>{item.length} <span className="text-slate-400">x</span> {item.width}</span>
                     )}
@@ -109,25 +109,25 @@ const SwipeableItem: React.FC<SwipeableItemProps> = ({
                   )}
 
                   {/* Rate Badge */}
-                  <span className="text-xs font-medium text-slate-500">@ {item.rate}</span>
+                  <span className="text-xs font-medium text-slate-500">@ ₹{item.rate}</span>
                 </div>
               </div>
           </div>
 
-          <div className="text-right flex flex-col items-end gap-1">
+          <div className="text-right flex flex-col items-end gap-1.5 pl-2">
               <div className="font-extrabold text-slate-900 dark:text-white text-lg tracking-tight">₹{item.amount.toFixed(0)}</div>
               
-              {/* Visible Delete Action for Accessibility */}
-              <div className="flex gap-2 mt-1">
+              {/* Visible Action Buttons */}
+              <div className="flex gap-2">
                 <button 
                     onClick={() => onEdit(item)}
-                    className="p-1.5 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg hover:bg-indigo-100 transition"
+                    className="p-2 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg hover:bg-indigo-100 transition border border-indigo-100 dark:border-indigo-800"
                 >
                     <Pencil className="w-4 h-4" />
                 </button>
                 <button 
                     onClick={() => onDelete(item.id)}
-                    className="p-1.5 text-red-500 bg-red-50 dark:bg-red-900/30 rounded-lg hover:bg-red-100 transition"
+                    className="p-2 text-red-500 bg-red-50 dark:bg-red-900/30 rounded-lg hover:bg-red-100 transition border border-red-100 dark:border-red-800"
                 >
                     <Trash2 className="w-4 h-4" />
                 </button>
@@ -1110,14 +1110,16 @@ const App: React.FC = () => {
                       </div>
 
                       {/* Collapsible Add Form */}
-                      <div className="card overflow-hidden transition-all">
-                         <div className="bg-slate-50 dark:bg-slate-950/50 p-3 flex justify-between items-center cursor-pointer" onClick={() => setIsAddItemOpen(!isAddItemOpen)}>
-                            <h3 className="font-bold text-sm flex items-center gap-2">{editingId ? t.updateItem : 'Add New Item'}</h3>
-                            {isAddItemOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                      <div className="card overflow-hidden transition-all shadow-md">
+                         <div className={`p-4 flex justify-between items-center cursor-pointer transition-colors ${isAddItemOpen ? 'bg-indigo-50 dark:bg-indigo-900/30' : 'bg-white dark:bg-slate-900'}`} onClick={() => setIsAddItemOpen(!isAddItemOpen)}>
+                            <h3 className="font-bold text-sm flex items-center gap-2 text-indigo-700 dark:text-indigo-300">
+                               {editingId ? <><Pencil className="w-4 h-4" /> Edit Item</> : <><Plus className="w-4 h-4" /> Add New Item</>}
+                            </h3>
+                            {isAddItemOpen ? <ChevronUp className="w-4 h-4 text-indigo-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
                          </div>
                          
                          {isAddItemOpen && (
-                            <div className="p-4 border-t border-slate-100 dark:border-slate-800">
+                            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                                <div className="grid grid-cols-12 gap-3 mb-4">
                                   {/* Unit Selection */}
                                   <div className={`col-span-12 ${showFloorInput ? 'sm:col-span-2' : 'sm:col-span-3'}`}>
@@ -1154,7 +1156,7 @@ const App: React.FC = () => {
                                   {/* Description - Spans more if floor is hidden */}
                                   <div className={`col-span-12 ${showFloorInput ? 'sm:col-span-8' : 'sm:col-span-9'} relative`}>
                                      <label className="text-[10px] font-bold text-slate-400 block mb-1">DESCRIPTION</label>
-                                     <input type="text" className="input-field text-sm p-2 w-full" placeholder="Item Name" value={currentItem.description} onChange={e => handleDescriptionChange(e.target.value)} onFocus={() => currentItem.description && setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} />
+                                     <input type="text" className="input-field text-sm p-2 w-full font-bold" placeholder="Item Name" value={currentItem.description} onChange={e => handleDescriptionChange(e.target.value)} onFocus={() => currentItem.description && setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} />
                                      {showSuggestions && suggestions.length > 0 && <ul className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border rounded-lg shadow-lg max-h-40 overflow-y-auto z-50">{suggestions.map((s,i) => <li key={i} onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(s); }} className="px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer">{s}</li>)}</ul>}
                                   </div>
                                   
@@ -1167,31 +1169,31 @@ const App: React.FC = () => {
                                      </>
                                   )}
                                   
-                                  <div className="col-span-6 sm:col-span-2"><label className="text-[10px] font-bold text-slate-400 block mb-1">QTY</label><input type="number" inputMode="decimal" className="input-field text-center p-2 text-sm font-bold" placeholder="1" value={currentItem.quantity || ''} onChange={e => setCurrentItem({...currentItem, quantity: parseFloat(e.target.value)})} onFocus={e => e.target.select()} /></div>
-                                  <div className="col-span-6 sm:col-span-2"><label className="text-[10px] font-bold text-slate-400 block mb-1">RATE</label><input type="number" inputMode="decimal" className="input-field text-center p-2 text-sm font-bold" placeholder="0" value={currentItem.rate || ''} onChange={e => setCurrentItem({...currentItem, rate: parseFloat(e.target.value)})} onFocus={e => e.target.select()} /></div>
+                                  <div className="col-span-6 sm:col-span-2"><label className="text-[10px] font-bold text-slate-400 block mb-1">QTY</label><input type="number" inputMode="decimal" className="input-field text-center p-2 text-lg font-bold" placeholder="1" value={currentItem.quantity || ''} onChange={e => setCurrentItem({...currentItem, quantity: parseFloat(e.target.value)})} onFocus={e => e.target.select()} /></div>
+                                  <div className="col-span-6 sm:col-span-2"><label className="text-[10px] font-bold text-slate-400 block mb-1">RATE</label><input type="number" inputMode="decimal" className="input-field text-center p-2 text-lg font-bold" placeholder="0" value={currentItem.rate || ''} onChange={e => setCurrentItem({...currentItem, rate: parseFloat(e.target.value)})} onFocus={e => e.target.select()} /></div>
                                   
                                   <div className="col-span-12 mt-2">
-                                     <div className="bg-slate-900 text-green-400 p-3 rounded-lg flex justify-between items-center font-mono font-bold shadow-inner">
-                                        <span className="text-xs text-slate-500 uppercase">Amount</span>
-                                        <span className="text-lg">₹{calculateAmount(currentItem.length || 0, currentItem.width || 0, currentItem.height || 0, currentItem.quantity || 1, currentItem.rate || 0, currentItem.unit || 'sq.ft').toFixed(0)}</span>
+                                     <div className="bg-slate-900 text-green-400 p-4 rounded-xl flex justify-between items-center font-mono font-bold shadow-inner">
+                                        <span className="text-xs text-slate-500 uppercase tracking-widest">Amount</span>
+                                        <span className="text-2xl">₹{calculateAmount(currentItem.length || 0, currentItem.width || 0, currentItem.height || 0, currentItem.quantity || 1, currentItem.rate || 0, currentItem.unit || 'sq.ft').toFixed(0)}</span>
                                      </div>
                                   </div>
                                 </div>
                                
-                               <div className="flex gap-2">
-                                  <button onClick={() => setIsVoiceModalOpen(true)} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 dark:shadow-none animate-pulse hover:animate-none active:scale-95 transition"><Mic className="w-5 h-5" /> TAP TO SPEAK</button>
-                                  <button onClick={handleAddItem} disabled={!currentItem.description || !currentItem.rate} className="flex-[2] btn-primary py-3 flex items-center justify-center gap-2">{editingId ? 'Update' : 'Add'} <Plus className="w-5 h-5" /></button>
+                               <div className="flex gap-3">
+                                  <button onClick={() => setIsVoiceModalOpen(true)} className="w-16 h-14 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200 dark:shadow-none animate-pulse hover:animate-none active:scale-95 transition"><Mic className="w-7 h-7 text-white" /></button>
+                                  <button onClick={handleAddItem} disabled={!currentItem.description || !currentItem.rate} className="flex-1 btn-primary py-3 flex items-center justify-center gap-2 text-lg">{editingId ? 'Update Item' : 'Add Item'}</button>
                                 </div>
                             </div>
                          )}
                       </div>
 
                       {/* Items List */}
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                          {filteredItems.map((item, idx) => (
                             <SwipeableItem key={item.id} item={item} index={idx} onDelete={handleRemoveItem} onEdit={handleEditItem} />
                          ))}
-                         {items.length === 0 && <div className="text-center py-10 text-slate-400 text-sm font-medium">No items yet.<br/>Tap the Mic or Add button above.</div>}
+                         {items.length === 0 && <div className="text-center py-12 text-slate-400 dark:text-slate-500 text-sm font-medium border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900/50">No items yet.<br/>Tap the Mic or Add button above to start.</div>}
                       </div>
 
                       <button onClick={() => validateAndNext('summary')} disabled={items.length === 0} className="w-full btn-primary py-4 text-lg shadow-xl flex items-center justify-center gap-2 mt-4 disabled:opacity-50 disabled:cursor-not-allowed">Next: Summary <ArrowRight className="w-5 h-5" /></button>
@@ -1205,22 +1207,22 @@ const App: React.FC = () => {
                          <h2 className="font-bold text-lg">Bill Summary</h2>
                          <div className="flex justify-between text-sm"><span>Sub Total</span><span className="font-bold">₹{totals.subTotal.toFixed(2)}</span></div>
                          <div className="flex items-center justify-between">
-                            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={gstEnabled} onChange={e => setGstEnabled(e.target.checked)} /> Add GST</label>
-                            {gstEnabled && <div className="flex items-center gap-1"><input type="number" value={gstRate} onChange={e => setGstRate(parseFloat(e.target.value))} className="w-10 bg-slate-100 p-1 rounded text-center text-xs font-bold" />%</div>}
+                            <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={gstEnabled} onChange={e => setGstEnabled(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" /> Add GST</label>
+                            {gstEnabled && <div className="flex items-center gap-1"><input type="number" value={gstRate} onChange={e => setGstRate(parseFloat(e.target.value))} className="w-12 bg-slate-100 p-1.5 rounded text-center text-sm font-bold" />%</div>}
                          </div>
                          {gstEnabled && <div className="flex justify-between text-sm text-slate-500"><span>GST Amount</span><span>₹{totals.gst.toFixed(2)}</span></div>}
-                         <div className="flex justify-between items-end pt-3 border-t"><span className="font-bold text-lg">Grand Total</span><span className="font-extrabold text-2xl text-indigo-600">₹{totals.grandTotal.toFixed(2)}</span></div>
+                         <div className="flex justify-between items-end pt-3 border-t border-slate-200 dark:border-slate-700"><span className="font-bold text-lg">Grand Total</span><span className="font-extrabold text-3xl text-indigo-600 dark:text-indigo-400">₹{totals.grandTotal.toFixed(0)}</span></div>
                       </div>
 
                       {documentType === 'invoice' && (
                          <div className="card p-4 space-y-3">
                             <h3 className="font-bold text-sm uppercase text-slate-500">{t.paymentHistory}</h3>
-                            {payments.map(p => <div key={p.id} className="flex justify-between text-sm bg-slate-50 p-2 rounded"><span>{new Date(p.date).toLocaleDateString()}</span><span className="font-bold text-green-600">₹{p.amount}</span><button onClick={() => handleDeletePayment(p.id)}><X className="w-4 h-4 text-slate-400" /></button></div>)}
+                            {payments.map(p => <div key={p.id} className="flex justify-between text-sm bg-slate-50 dark:bg-slate-800 p-3 rounded-lg"><span>{new Date(p.date).toLocaleDateString()}</span><span className="font-bold text-green-600 dark:text-green-400">₹{p.amount}</span><button onClick={() => handleDeletePayment(p.id)}><X className="w-4 h-4 text-slate-400" /></button></div>)}
                             <div className="flex gap-2">
-                               <input type="number" placeholder="Amount" value={newPaymentAmount} onChange={e => setNewPaymentAmount(e.target.value)} className="input-field py-2" />
-                               <button onClick={handleAddPayment} className="bg-green-600 text-white px-4 rounded-xl"><Plus className="w-5 h-5" /></button>
+                               <input type="number" placeholder="Amount" value={newPaymentAmount} onChange={e => setNewPaymentAmount(e.target.value)} className="input-field py-2 font-bold" />
+                               <button onClick={handleAddPayment} className="bg-green-600 text-white px-4 rounded-xl shadow-lg active:scale-95 transition"><Plus className="w-6 h-6" /></button>
                             </div>
-                            <div className="bg-indigo-600 text-white p-3 rounded-xl flex justify-between font-bold"><span>Balance Due</span><span>₹{totals.balance.toFixed(2)}</span></div>
+                            <div className="bg-indigo-600 text-white p-4 rounded-xl flex justify-between font-bold shadow-lg"><span>Balance Due</span><span>₹{totals.balance.toFixed(0)}</span></div>
                          </div>
                       )}
 
@@ -1229,7 +1231,7 @@ const App: React.FC = () => {
                           <div className="flex items-center justify-between">
                               <h3 className="font-bold text-sm flex items-center gap-2"><Landmark className="w-4 h-4 text-indigo-500" /> Bank Account Details</h3>
                               <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" checked={includeBankDetails} onChange={e => setIncludeBankDetails(e.target.value)} className="sr-only peer" />
+                                <input type="checkbox" checked={includeBankDetails} onChange={e => setIncludeBankDetails(e.target.checked)} className="sr-only peer" />
                                 <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                               </label>
                           </div>
@@ -1269,8 +1271,8 @@ const App: React.FC = () => {
                       </div>
 
                       <div className="flex gap-3 pt-4">
-                         <button onClick={handleSaveBill} className="flex-1 py-4 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 shadow-sm flex justify-center items-center gap-2"><Save className="w-5 h-5" /> Save</button>
-                         <button onClick={() => setIsShareModalOpen(true)} className="flex-[2] py-4 bg-green-600 text-white rounded-xl font-bold shadow-xl flex justify-center items-center gap-2"><Share2 className="w-5 h-5" /> Share / Export</button>
+                         <button onClick={handleSaveBill} className="flex-1 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-700 dark:text-slate-300 shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition"><Save className="w-5 h-5" /> Save</button>
+                         <button onClick={() => setIsShareModalOpen(true)} className="flex-[2] py-4 bg-green-600 text-white rounded-xl font-bold shadow-xl flex justify-center items-center gap-2 active:scale-95 transition"><Share2 className="w-5 h-5" /> Share / Export</button>
                       </div>
                    </div>
                 )}
@@ -1282,8 +1284,8 @@ const App: React.FC = () => {
         {currentView === 'history' && (
            <Suspense fallback={<LoadingFallback />}>
               <HistoryModal 
-                 isOpen={true} // Rendered inline effectively 
-                 onClose={() => setCurrentView('create')} // Nav back to create
+                 isOpen={true} 
+                 onClose={() => setCurrentView('create')} 
                  history={historyItems} trash={trashItems} onLoad={handleLoadBill} 
                  onDelete={handleDeleteBill} onRestore={handleRestoreBill} onPermanentDelete={handlePermanentDelete} 
                  onUpdateStatus={handleUpdateHistoryStatus} onUpdateEstimateStatus={handleUpdateEstimateStatus} 
@@ -1309,22 +1311,26 @@ const App: React.FC = () => {
       </main>
 
       {/* --- BOTTOM NAVIGATION BAR --- */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 safe-area-bottom z-50 shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
-         <div className="flex justify-around items-center h-16 max-w-4xl mx-auto">
-            <button onClick={() => { setCurrentView('create'); setCreateStep('parties'); }} className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${currentView === 'create' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'}`}>
-               <FilePlus className={`w-6 h-6 ${currentView === 'create' ? 'fill-indigo-100 dark:fill-indigo-900' : ''}`} />
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 safe-area-bottom z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
+         <div className="flex justify-around items-center h-16 max-w-4xl mx-auto px-2">
+            <button onClick={() => { setCurrentView('create'); setCreateStep('parties'); }} className={`flex flex-col items-center justify-center w-full h-full space-y-1 relative group ${currentView === 'create' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'}`}>
+               {currentView === 'create' && <div className="absolute top-0 w-8 h-1 bg-indigo-600 dark:bg-indigo-400 rounded-b-full"></div>}
+               <FilePlus className={`w-6 h-6 transition-transform group-active:scale-90 ${currentView === 'create' ? 'fill-indigo-100 dark:fill-indigo-900' : ''}`} />
                <span className="text-[10px] font-bold">Create</span>
             </button>
-            <button onClick={() => setCurrentView('history')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${currentView === 'history' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'}`}>
-               <Clock className={`w-6 h-6 ${currentView === 'history' ? 'fill-indigo-100 dark:fill-indigo-900' : ''}`} />
+            <button onClick={() => setCurrentView('history')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 relative group ${currentView === 'history' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'}`}>
+               {currentView === 'history' && <div className="absolute top-0 w-8 h-1 bg-indigo-600 dark:bg-indigo-400 rounded-b-full"></div>}
+               <Clock className={`w-6 h-6 transition-transform group-active:scale-90 ${currentView === 'history' ? 'fill-indigo-100 dark:fill-indigo-900' : ''}`} />
                <span className="text-[10px] font-bold">History</span>
             </button>
-            <button onClick={() => setCurrentView('analytics')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${currentView === 'analytics' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'}`}>
-               <PieChart className={`w-6 h-6 ${currentView === 'analytics' ? 'fill-indigo-100 dark:fill-indigo-900' : ''}`} />
-               <span className="text-[10px] font-bold">Analytics</span>
+            <button onClick={() => setCurrentView('analytics')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 relative group ${currentView === 'analytics' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'}`}>
+               {currentView === 'analytics' && <div className="absolute top-0 w-8 h-1 bg-indigo-600 dark:bg-indigo-400 rounded-b-full"></div>}
+               <PieChart className={`w-6 h-6 transition-transform group-active:scale-90 ${currentView === 'analytics' ? 'fill-indigo-100 dark:fill-indigo-900' : ''}`} />
+               <span className="text-[10px] font-bold">Stats</span>
             </button>
-            <button onClick={() => setCurrentView('profile')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${currentView === 'profile' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'}`}>
-               <Menu className="w-6 h-6" />
+            <button onClick={() => setCurrentView('profile')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 relative group ${currentView === 'profile' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'}`}>
+               {currentView === 'profile' && <div className="absolute top-0 w-8 h-1 bg-indigo-600 dark:bg-indigo-400 rounded-b-full"></div>}
+               <Menu className="w-6 h-6 transition-transform group-active:scale-90" />
                <span className="text-[10px] font-bold">Menu</span>
             </button>
          </div>
