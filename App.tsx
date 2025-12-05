@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { 
   Plus, Trash2, X, Calculator, Pencil, Clock, Save, Search, 
@@ -6,7 +5,7 @@ import {
   FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, 
   RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, 
   Wallet, PieChart, Menu, ArrowRight, ChevronDown, ChevronUp, 
-  Landmark, Printer
+  Landmark, Printer, FileCheck
 } from 'lucide-react';
 
 import { 
@@ -17,9 +16,9 @@ import {
   APP_TEXT, CONSTRUCTION_UNITS, BUSINESS_CATEGORIES, AUTO_SUGGEST_ITEMS 
 } from './constants';
 import { 
-  saveDraft, loadDraft, saveToHistory, getHistory, 
+  saveDraft, loadDraft, saveToHistory, getHistory, getTrash,
   saveProfile, getProfiles, saveClientProfile, getClientProfiles, 
-  deleteFromHistory, updateBillStatus, updateEstimateStatus 
+  deleteFromHistory, restoreFromTrash, permanentDelete, updateBillStatus, updateEstimateStatus 
 } from './services/storageService';
 import { generatePDF, printPDF } from './services/pdfService';
 import { generateExcel } from './services/excelService';
@@ -94,29 +93,33 @@ export const App = () => {
 
   // --- Init ---
   useEffect(() => {
-    if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      setIsDarkMode(true);
-      document.documentElement.classList.add('dark');
-    }
-
-    const savedUser = localStorage.getItem('pop_user_profile');
-    if (savedUser) {
-      const u = JSON.parse(savedUser);
-      setUser(u);
-      setAccess(checkSubscriptionAccess());
-    }
-
-    const draft = loadDraft();
-    if (draft) {
-      loadBillData(draft);
-      if (draft.contractor?.bankDetails) setIncludeBankDetails(true);
-    } else {
-      const profiles = getProfiles();
-      if (profiles.length > 0) {
-        setContractor(profiles[0].details);
-        setSelectedProfileId(profiles[0].id);
+    try {
+      if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        setIsDarkMode(true);
+        document.documentElement.classList.add('dark');
       }
-      setBillNumber(generateNextBillNumber());
+
+      const savedUser = localStorage.getItem('pop_user_profile');
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        setUser(u);
+        setAccess(checkSubscriptionAccess());
+      }
+
+      const draft = loadDraft();
+      if (draft) {
+        loadBillData(draft);
+        if (draft.contractor?.bankDetails) setIncludeBankDetails(true);
+      } else {
+        const profiles = getProfiles();
+        if (profiles.length > 0) {
+          setContractor(profiles[0].details);
+          setSelectedProfileId(profiles[0].id);
+        }
+        setBillNumber(generateNextBillNumber());
+      }
+    } catch (e) {
+      console.error("Init Error", e);
     }
   }, []);
 
@@ -124,6 +127,7 @@ export const App = () => {
     if (user) setAccess(checkSubscriptionAccess());
   }, [user]);
 
+  // Auto-Save Draft
   useEffect(() => {
     if (!user) return;
     const dataToSave = {
@@ -132,7 +136,7 @@ export const App = () => {
         advanceAmount: '', originalId: currentBillId
     };
     saveDraft(dataToSave);
-    if (currentBillId) saveToHistory(dataToSave, currentBillId);
+    // Removed auto-save to history here to prevent overwrites. Manual save button added below.
   }, [billNumber, billDate, contractor, client, items, gstEnabled, gstRate, payments, expenses, disclaimer, documentType, currentBillId, user]);
 
   // --- Helpers & Logic ---
@@ -194,22 +198,93 @@ export const App = () => {
     return { subTotal, gst, grandTotal, balance, advance: totalAdvance };
   };
 
-  const isConstructionMode = useMemo(() => {
-    const cat = contractor.businessCategory || '';
-    return cat.includes('Contractor') || cat.includes('Builder') || cat.includes('Architect') || cat.includes('Fabrication');
-  }, [contractor.businessCategory]);
+  const handleManualSave = () => {
+      if (!client.name) return showToast("Client Name Required", 'error');
+      if (items.length === 0) return showToast("Add at least one item", 'error');
 
-  const showFloorInput = useMemo(() => {
-    const cat = (contractor.businessCategory || '').toLowerCase();
-    const kws = ['civil', 'pop', 'paint', 'electric', 'plumb', 'hvac', 'interior', 'architect', 'real estate'];
-    return kws.some(k => cat.includes(k));
-  }, [contractor.businessCategory]);
+      const dataToSave = {
+        billNumber, billDate, contractor, client, items, gstEnabled, gstRate, 
+        payments, expenses, disclaimer, type: documentType, paymentStatus: 'Pending' as PaymentStatus,
+        advanceAmount: '', originalId: currentBillId
+      };
 
-  const getPriorityUnits = () => {
-    const cat = (contractor.businessCategory || '').toLowerCase();
-    if (cat.includes('retail') || cat.includes('shop')) return ['pcs', 'nos', 'pkt', 'box', 'set', 'kg', 'ltr'];
-    if (cat.includes('civil') || cat.includes('pop')) return ['sq.ft', 'brass', 'cu.ft', 'rft', 'nos', 'bag'];
-    return ['nos', 'sq.ft'];
+      const saved = saveToHistory(dataToSave, currentBillId);
+      setCurrentBillId(saved.id);
+      showToast(documentType === 'estimate' ? "Estimate Saved" : "Bill Saved");
+  };
+
+  const handleShareText = async (status: PaymentStatus) => {
+    const totals = getTotals();
+    const isPaid = status === 'Paid';
+    
+    let text = `*${documentType === 'invoice' ? 'INVOICE' : 'ESTIMATE'}: ${billNumber}*\n`;
+    text += `Date: ${new Date(billDate).toLocaleDateString()}\n`;
+    text += `From: ${contractor.companyName || contractor.name}\n`;
+    text += `To: ${client.name}\n\n`;
+    
+    text += `*Items:*\n`;
+    items.forEach((item, i) => {
+        text += `${i+1}. ${item.description}: ${item.quantity} ${item.unit} x ${item.rate} = ₹${item.amount}\n`;
+    });
+    
+    text += `\n*Sub Total:* ₹${totals.subTotal.toFixed(2)}`;
+    if(gstEnabled) text += `\nGST (${gstRate}%): ₹${totals.gst.toFixed(2)}`;
+    text += `\n*Grand Total: ₹${totals.grandTotal.toFixed(0)}*`;
+    
+    if(isPaid) {
+        text += `\n\n✅ *PAYMENT RECEIVED*`;
+    } else if (documentType === 'invoice') {
+        const due = isPaid ? 0 : totals.grandTotal - totals.advance;
+        text += `\n\nBalance Due: ₹${due.toFixed(0)}`;
+        if(contractor.bankDetails?.upiId) {
+            text += `\n\nPay via UPI: ${contractor.bankDetails.upiId}`;
+        }
+    }
+
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: `${documentType === 'invoice' ? 'Bill' : 'Estimate'} ${billNumber}`,
+                text: text
+            });
+        } catch (e) {
+            console.error("Share failed", e);
+        }
+    } else {
+        try {
+            await navigator.clipboard.writeText(text);
+            showToast("Summary copied to clipboard");
+        } catch (e) {
+            showToast("Failed to share", 'error');
+        }
+    }
+  };
+
+  const handleExport = (type: 'pdf' | 'excel', status: PaymentStatus, action: 'share' | 'download') => {
+    const totals = getTotals();
+    const finalContractor = { ...contractor, bankDetails: includeBankDetails ? contractor.bankDetails : undefined };
+    const generator = type === 'pdf' ? generatePDF : generateExcel;
+    
+    if (action === 'share') {
+       // @ts-ignore
+       const blob = generator(items, finalContractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, documentType, true);
+       if (navigator.share) {
+          const file = new File([blob], `${documentType}_${billNumber}.${type === 'pdf' ? 'pdf' : 'xlsx'}`, { type: blob.type });
+          navigator.share({ files: [file], title: `${documentType === 'invoice' ? 'Bill' : 'Estimate'} ${billNumber}` }).catch(console.error);
+       } else {
+          showToast("Sharing not supported on this device", 'error');
+       }
+    } else {
+       // @ts-ignore
+       generator(items, finalContractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, documentType, false);
+       showToast("Downloading...");
+    }
+  };
+
+  const handlePrint = (status: PaymentStatus) => {
+      const totals = getTotals();
+      const finalContractor = { ...contractor, bankDetails: includeBankDetails ? contractor.bankDetails : undefined };
+      printPDF(items, finalContractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, documentType);
   };
 
   // --- Handlers ---
@@ -286,34 +361,24 @@ export const App = () => {
      setCreateStep(targetStep);
   };
 
-  const handleExport = (type: 'pdf' | 'excel', status: PaymentStatus, action: 'share' | 'download') => {
-    const totals = getTotals();
-    const finalContractor = { ...contractor, bankDetails: includeBankDetails ? contractor.bankDetails : undefined };
-    const generator = type === 'pdf' ? generatePDF : generateExcel;
-    
-    if (action === 'share') {
-       // @ts-ignore
-       const blob = generator(items, finalContractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, documentType, true);
-       if (navigator.share) {
-          const file = new File([blob], `${documentType}_${billNumber}.${type === 'pdf' ? 'pdf' : 'xlsx'}`, { type: blob.type });
-          navigator.share({ files: [file], title: `${documentType === 'invoice' ? 'Bill' : 'Estimate'} ${billNumber}` }).catch(console.error);
-       } else {
-          showToast("Sharing not supported on this device", 'error');
-       }
-    } else {
-       // @ts-ignore
-       generator(items, finalContractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, documentType, false);
-       showToast("Downloading...");
-    }
+  const isConstructionMode = useMemo(() => {
+    const cat = contractor.businessCategory || '';
+    return cat.includes('Contractor') || cat.includes('Builder') || cat.includes('Architect') || cat.includes('Fabrication');
+  }, [contractor.businessCategory]);
+
+  const showFloorInput = useMemo(() => {
+    const cat = (contractor.businessCategory || '').toLowerCase();
+    const kws = ['civil', 'pop', 'paint', 'electric', 'plumb', 'hvac', 'interior', 'architect', 'real estate'];
+    return kws.some(k => cat.includes(k));
+  }, [contractor.businessCategory]);
+
+  const getPriorityUnits = () => {
+    const cat = (contractor.businessCategory || '').toLowerCase();
+    if (cat.includes('retail') || cat.includes('shop')) return ['pcs', 'nos', 'pkt', 'box', 'set', 'kg', 'ltr'];
+    if (cat.includes('civil') || cat.includes('pop')) return ['sq.ft', 'brass', 'cu.ft', 'rft', 'nos', 'bag'];
+    return ['nos', 'sq.ft'];
   };
 
-  const handlePrint = (status: PaymentStatus) => {
-      const totals = getTotals();
-      const finalContractor = { ...contractor, bankDetails: includeBankDetails ? contractor.bankDetails : undefined };
-      printPDF(items, finalContractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, documentType);
-  };
-
-  // --- Render ---
   if (!user) {
     return (
       <Suspense fallback={<div className="h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-600"/></div>}>
@@ -337,6 +402,7 @@ export const App = () => {
 
   return (
     <div className={`min-h-screen pb-20 font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200 ${documentType === 'estimate' ? 'bg-amber-50/30 dark:bg-slate-950' : 'bg-slate-50 dark:bg-slate-950'}`}>
+      
       {toast && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-full shadow-xl flex items-center gap-2 animate-slide-up ${toast.type === 'success' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-red-500 text-white'}`}>
           {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -345,9 +411,11 @@ export const App = () => {
       )}
 
       <main className="max-w-5xl mx-auto min-h-[90vh]">
+        
         {/* VIEW: CREATE */}
         {currentView === 'create' && (
           <div className="animate-in fade-in duration-300">
+             
              {/* Header */}
              <div className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-b border-slate-200 dark:border-slate-800 safe-area-top">
                 <div className="max-w-5xl mx-auto px-4 py-3">
@@ -356,6 +424,7 @@ export const App = () => {
                          {documentType === 'estimate' ? <FilePlus className="w-5 h-5 text-amber-600" /> : <FileText className="w-5 h-5 text-indigo-600" />}
                          {documentType === 'invoice' ? 'New Invoice' : 'New Estimate'}
                       </h1>
+                      
                       <div className="flex items-center gap-2">
                          <div className="hidden md:flex gap-2 mr-4 border-r border-slate-200 dark:border-slate-800 pr-4">
                             <button onClick={() => setCurrentView('create')} className="px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg">Create</button>
@@ -370,6 +439,7 @@ export const App = () => {
                          <button onClick={() => setIsProfileModalOpen(true)} className="p-1 bg-indigo-100 dark:bg-indigo-900 rounded-full text-indigo-600 dark:text-indigo-300"><User className="w-5 h-5" /></button>
                       </div>
                    </div>
+                   
                    <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl relative">
                       <div className={`absolute top-1 bottom-1 w-1/3 bg-white dark:bg-slate-700 rounded-lg shadow-sm transition-all duration-300 ease-in-out ${createStep === 'parties' ? 'left-1' : createStep === 'items' ? 'left-[33.33%]' : 'left-[66.66%]'}`}></div>
                       <button onClick={() => setCreateStep('parties')} className={`flex-1 relative z-10 py-2 text-xs font-bold text-center transition-colors ${createStep === 'parties' ? 'text-indigo-600 dark:text-white' : 'text-slate-500'}`}>1. {t.stepParties}</button>
@@ -380,6 +450,7 @@ export const App = () => {
              </div>
 
              <div className="p-4 space-y-6">
+                
                 {/* STEP 1: PARTIES */}
                 {createStep === 'parties' && (
                    <div className="space-y-6 animate-slide-up">
@@ -393,7 +464,6 @@ export const App = () => {
                       </div>
 
                       <div className="grid md:grid-cols-2 gap-6">
-                        {/* Contractor Card */}
                         <div className="card p-5 space-y-4">
                            <div className="flex justify-between items-center">
                               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Building2 className="w-5 h-5 text-indigo-500" /> {t.contractorDetails}</h3>
@@ -425,7 +495,6 @@ export const App = () => {
                            </div>
                         </div>
 
-                        {/* Client Card */}
                         <div className="card p-5 space-y-4">
                            <div className="flex justify-between items-center">
                               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><User className="w-5 h-5 text-indigo-500" /> {t.clientDetails}</h3>
@@ -601,16 +670,25 @@ export const App = () => {
                          <div className="flex items-center gap-2 mb-4"><input type="checkbox" checked={includeBankDetails} onChange={e => setIncludeBankDetails(e.target.checked)} className="w-5 h-5 accent-indigo-600" /><h3 className="font-bold flex items-center gap-2"><Landmark className="w-5 h-5 text-slate-600" /> Include Bank Details</h3></div>
                          {includeBankDetails && (
                             <div className="space-y-3 animate-fade-in grid md:grid-cols-2 gap-4">
-                                <div className="md:col-span-2"><input type="text" placeholder="Account Name" value={contractor.bankDetails?.holderName} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, holderName: e.target.value}})} className="input-field" /></div>
-                                <input type="text" placeholder="Account No" value={contractor.bankDetails?.accountNumber} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, accountNumber: e.target.value}})} className="input-field" />
-                                <input type="text" placeholder="IFSC Code" value={contractor.bankDetails?.ifscCode} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, ifscCode: e.target.value.toUpperCase()}})} className="input-field" />
-                                <input type="text" placeholder="Bank Name" value={contractor.bankDetails?.bankName} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, bankName: e.target.value}})} className="input-field" />
-                                <input type="text" placeholder="UPI ID (Optional)" value={contractor.bankDetails?.upiId} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, upiId: e.target.value}})} className="input-field" />
-                                <div className="pt-2 md:col-span-2"><label className="text-xs font-bold text-slate-400 mb-2 block">Payment QR Code</label>{contractor.upiQrCode ? (<div className="relative w-24 h-24 border rounded-xl overflow-hidden"><img src={contractor.upiQrCode} className="w-full h-full object-cover" alt="QR" /><button onClick={() => setContractor({...contractor, upiQrCode: ''})} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"><X className="w-3 h-3" /></button></div>) : (<label className="w-24 h-24 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:bg-slate-50"><QrCode className="w-6 h-6 mb-1" /><span className="text-[10px]">Upload</span><input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = () => setContractor({...contractor, upiQrCode: r.result as string}); r.readAsDataURL(f); }}} /></label>)}</div>
+                               <div className="md:col-span-2"><input type="text" placeholder="Account Name" value={contractor.bankDetails?.holderName || ''} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, holderName: e.target.value}})} className="input-field" /></div>
+                               <input type="text" placeholder="Account No" value={contractor.bankDetails?.accountNumber || ''} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, accountNumber: e.target.value}})} className="input-field" />
+                               <input type="text" placeholder="IFSC Code" value={contractor.bankDetails?.ifscCode || ''} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, ifscCode: e.target.value.toUpperCase()}})} className="input-field" />
+                               <input type="text" placeholder="Bank Name" value={contractor.bankDetails?.bankName || ''} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, bankName: e.target.value}})} className="input-field" />
+                               <input type="text" placeholder="UPI ID (Optional)" value={contractor.bankDetails?.upiId || ''} onChange={e => setContractor({...contractor, bankDetails: {...contractor.bankDetails!, upiId: e.target.value}})} className="input-field" />
+                               <div className="pt-2 md:col-span-2"><label className="text-xs font-bold text-slate-400 mb-2 block">Payment QR Code</label>{contractor.upiQrCode ? (<div className="relative w-24 h-24 border rounded-xl overflow-hidden"><img src={contractor.upiQrCode} className="w-full h-full object-cover" alt="QR" /><button onClick={() => setContractor({...contractor, upiQrCode: ''})} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"><X className="w-3 h-3" /></button></div>) : (<label className="w-24 h-24 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:bg-slate-50"><QrCode className="w-6 h-6 mb-1" /><span className="text-[10px]">Upload</span><input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = () => setContractor({...contractor, upiQrCode: r.result as string}); r.readAsDataURL(f); }}} /></label>)}</div>
                             </div>
                          )}
                       </div>
-                      <button onClick={() => setIsShareOpen(true)} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 text-lg active:scale-95 transition"><Share2 className="w-6 h-6" /> Export / Share Bill</button>
+                      
+                      <div className="flex flex-col gap-3">
+                          <button onClick={handleManualSave} className="w-full bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 text-lg active:scale-95 transition">
+                             <FileCheck className="w-6 h-6 text-green-400" /> Save {documentType === 'estimate' ? 'Estimate' : 'Bill'}
+                          </button>
+                          
+                          <button onClick={() => setIsShareOpen(true)} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 text-lg active:scale-95 transition">
+                             <Share2 className="w-6 h-6" /> Export / Share
+                          </button>
+                      </div>
                    </div>
                 )}
              </div>
@@ -618,9 +696,9 @@ export const App = () => {
         )}
 
         {/* OTHER VIEWS */}
-        {currentView === 'history' && <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>}><HistoryModal isOpen={true} onClose={() => setCurrentView('create')} history={getHistory()} trash={[]} onLoad={(bill) => { loadBillData(bill); setCurrentView('create'); }} onDelete={(id) => { deleteFromHistory(id); setCurrentView('history'); }} onRestore={() => {}} onPermanentDelete={() => {}} onUpdateStatus={updateBillStatus} onUpdateEstimateStatus={updateEstimateStatus} onConvertToInvoice={() => {}} /></Suspense>}
+        {currentView === 'history' && <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>}><HistoryModal isOpen={true} onClose={() => setCurrentView('create')} history={getHistory()} trash={getTrash()} onLoad={(bill) => { loadBillData(bill); setCurrentView('create'); }} onDelete={(id) => { deleteFromHistory(id); setCurrentView('history'); }} onRestore={(id) => { restoreFromTrash(id); setCurrentView('history'); }} onPermanentDelete={(id) => { permanentDelete(id); setCurrentView('history'); }} onUpdateStatus={updateBillStatus} onUpdateEstimateStatus={updateEstimateStatus} onConvertToInvoice={() => {}} onDownloadPdf={(bill) => handleExport('pdf', bill.paymentStatus, 'download')} onDownloadExcel={(bill) => handleExport('excel', bill.paymentStatus, 'download')} /></Suspense>}
         {currentView === 'analytics' && <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>}><DashboardModal isOpen={true} onClose={() => setCurrentView('create')} history={getHistory()} /></Suspense>}
-        {currentView === 'profile' && user && <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>}><ProfileModal isOpen={true} onClose={() => setCurrentView('create')} user={user} planDetails={{ name: access.isTrial ? 'Free Trial' : 'Premium', expiry: '3 Days' }} onLogout={() => { logoutUser(); setUser(null); }} onBackup={async () => { setIsSyncing(true); await backupToDrive(); setIsSyncing(false); showToast("Backup Done"); }} onRestore={async () => { setIsSyncing(true); await restoreFromDrive(); setIsSyncing(false); }} onUpgrade={() => setShowSubscription(true)} isSyncing={isSyncing} /></Suspense>}
+        {currentView === 'profile' && user && <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>}><ProfileModal isOpen={true} onClose={() => setCurrentView('create')} user={user} planDetails={{ name: access.isTrial ? 'Free Trial' : 'Premium', expiry: '3 Days' }} onLogout={() => { logoutUser(); setUser(null); }} onBackup={async () => { setIsSyncing(true); try { await backupToDrive(); showToast("Backup Done"); } catch(e){ showToast("Backup Failed",'error'); } setIsSyncing(false); }} onRestore={async () => { setIsSyncing(true); try { await restoreFromDrive(); showToast("Restored"); } catch(e){ showToast("Restore Failed",'error'); } setIsSyncing(false); }} onUpgrade={() => setShowSubscription(true)} isSyncing={isSyncing} /></Suspense>}
 
       </main>
 
@@ -639,7 +717,7 @@ export const App = () => {
       <Suspense fallback={null}>
          <VoiceEntryModal isOpen={isVoiceOpen} onClose={() => setIsVoiceOpen(false)} onConfirm={(item) => { setCurrentItem({...currentItem, ...item, amount: calculateAmount(item.length, item.width, item.height || 0, item.quantity, item.rate, item.unit)}); setIsVoiceOpen(false); }} />
          <CalculatorModal isOpen={isCalcOpen} onClose={() => setIsCalcOpen(false)} />
-         <ShareModal isOpen={isShareOpen} onClose={() => setIsShareOpen(false)} documentType={documentType} previewText={`Bill from ${contractor.companyName}`} onShareText={() => {}} onSharePdf={async (s) => handleExport('pdf', s, 'share')} onShareExcel={async (s) => handleExport('excel', s, 'share')} onDownloadPdf={(s) => handleExport('pdf', s, 'download')} onDownloadExcel={(s) => handleExport('excel', s, 'download')} onPrint={handlePrint} />
+         <ShareModal isOpen={isShareOpen} onClose={() => setIsShareOpen(false)} documentType={documentType} previewText={`Bill from ${contractor.companyName}`} onShareText={handleShareText} onSharePdf={async (s) => handleExport('pdf', s, 'share')} onShareExcel={async (s) => handleExport('excel', s, 'share')} onDownloadPdf={(s) => handleExport('pdf', s, 'download')} onDownloadExcel={(s) => handleExport('excel', s, 'download')} onPrint={handlePrint} />
          <ExpensesModal isOpen={isExpensesOpen} onClose={() => setIsExpensesOpen(false)} expenses={expenses} onAddExpense={(e) => setExpenses([...expenses, e])} onDeleteExpense={(id) => setExpenses(expenses.filter(e => e.id !== id))} onSetExpenses={(exps) => setExpenses(exps)} billTotal={getTotals().grandTotal} />
          {showSubscription && <SubscriptionPlans onSuccess={(u) => { setUser(u); setShowSubscription(false); }} onBack={() => setShowSubscription(false)} planId={user.planId || undefined} />}
       </Suspense>
