@@ -5,7 +5,7 @@ import {
   FilePlus, Moon, Sun, Mic, Building2, LogOut, Crown, Cloud, 
   RefreshCw, CheckCircle2, User, ChevronRight, Loader2, FileText, 
   Wallet, PieChart, Menu, ArrowRight, ChevronDown, ChevronUp, 
-  Landmark
+  Landmark, Printer
 } from 'lucide-react';
 
 import { 
@@ -16,9 +16,9 @@ import {
   APP_TEXT, CONSTRUCTION_UNITS, BUSINESS_CATEGORIES, AUTO_SUGGEST_ITEMS 
 } from './constants';
 import { 
-  saveDraft, loadDraft, saveToHistory, getHistory, 
+  saveDraft, loadDraft, saveToHistory, getHistory, getTrash,
   saveProfile, getProfiles, saveClientProfile, getClientProfiles, 
-  deleteFromHistory, updateBillStatus, updateEstimateStatus 
+  deleteFromHistory, restoreFromTrash, permanentDelete, updateBillStatus, updateEstimateStatus 
 } from './services/storageService';
 import { generatePDF, printPDF } from './services/pdfService';
 import { generateExcel } from './services/excelService';
@@ -66,6 +66,7 @@ export const App = () => {
   });
   const [isAddItemOpen, setIsAddItemOpen] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Financials
   const [gstEnabled, setGstEnabled] = useState(false);
@@ -92,29 +93,33 @@ export const App = () => {
 
   // --- Init ---
   useEffect(() => {
-    if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      setIsDarkMode(true);
-      document.documentElement.classList.add('dark');
-    }
-
-    const savedUser = localStorage.getItem('pop_user_profile');
-    if (savedUser) {
-      const u = JSON.parse(savedUser);
-      setUser(u);
-      setAccess(checkSubscriptionAccess());
-    }
-
-    const draft = loadDraft();
-    if (draft) {
-      loadBillData(draft);
-      if (draft.contractor?.bankDetails) setIncludeBankDetails(true);
-    } else {
-      const profiles = getProfiles();
-      if (profiles.length > 0) {
-        setContractor(profiles[0].details);
-        setSelectedProfileId(profiles[0].id);
+    try {
+      if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        setIsDarkMode(true);
+        document.documentElement.classList.add('dark');
       }
-      setBillNumber(generateNextBillNumber());
+
+      const savedUser = localStorage.getItem('pop_user_profile');
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        setUser(u);
+        setAccess(checkSubscriptionAccess());
+      }
+
+      const draft = loadDraft();
+      if (draft) {
+        loadBillData(draft);
+        if (draft.contractor?.bankDetails) setIncludeBankDetails(true);
+      } else {
+        const profiles = getProfiles();
+        if (profiles.length > 0) {
+          setContractor(profiles[0].details);
+          setSelectedProfileId(profiles[0].id);
+        }
+        setBillNumber(generateNextBillNumber());
+      }
+    } catch (e) {
+      console.error("Init Error", e);
     }
   }, []);
 
@@ -122,6 +127,7 @@ export const App = () => {
     if (user) setAccess(checkSubscriptionAccess());
   }, [user]);
 
+  // Auto-Save
   useEffect(() => {
     if (!user) return;
     const dataToSave = {
@@ -203,7 +209,6 @@ export const App = () => {
       setItems([...items, newItem]);
       showToast("Item Added");
     }
-    // Keep unit/floor context for speed
     setCurrentItem({ ...currentItem, description: '', amount: 0, length: 0, width: 0, height: 0, quantity: 1, rate: 0 });
   };
 
@@ -293,6 +298,53 @@ export const App = () => {
       const totals = getTotals();
       const finalContractor = { ...contractor, bankDetails: includeBankDetails ? contractor.bankDetails : undefined };
       printPDF(items, finalContractor, client, gstEnabled, gstRate, payments, disclaimer, billNumber, status, totals, billDate, documentType);
+  };
+
+  const handleShareText = async (status: PaymentStatus) => {
+    const totals = getTotals();
+    const isPaid = status === 'Paid';
+    
+    let text = `*${documentType === 'invoice' ? 'INVOICE' : 'ESTIMATE'}: ${billNumber}*\n`;
+    text += `Date: ${new Date(billDate).toLocaleDateString()}\n`;
+    text += `From: ${contractor.companyName || contractor.name}\n`;
+    text += `To: ${client.name}\n\n`;
+    
+    text += `*Items:*\n`;
+    items.forEach((item, i) => {
+        text += `${i+1}. ${item.description}: ${item.quantity} ${item.unit} x ${item.rate} = ₹${item.amount}\n`;
+    });
+    
+    text += `\n*Sub Total:* ₹${totals.subTotal.toFixed(2)}`;
+    if(gstEnabled) text += `\nGST (${gstRate}%): ₹${totals.gst.toFixed(2)}`;
+    text += `\n*Grand Total: ₹${totals.grandTotal.toFixed(0)}*`;
+    
+    if(isPaid) {
+        text += `\n\n✅ *PAYMENT RECEIVED*`;
+    } else if (documentType === 'invoice') {
+        const due = isPaid ? 0 : totals.grandTotal - totals.advance;
+        text += `\n\nBalance Due: ₹${due.toFixed(0)}`;
+        if(contractor.bankDetails?.upiId) {
+            text += `\n\nPay via UPI: ${contractor.bankDetails.upiId}`;
+        }
+    }
+
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: `${documentType === 'invoice' ? 'Bill' : 'Estimate'} ${billNumber}`,
+                text: text
+            });
+        } catch (e) {
+            console.error("Share failed", e);
+        }
+    } else {
+        try {
+            await navigator.clipboard.writeText(text);
+            showToast("Summary copied to clipboard");
+        } catch (e) {
+            showToast("Failed to share", 'error');
+        }
+    }
   };
 
   const isConstructionMode = useMemo(() => {
@@ -621,9 +673,9 @@ export const App = () => {
         )}
 
         {/* OTHER VIEWS */}
-        {currentView === 'history' && <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>}><HistoryModal isOpen={true} onClose={() => setCurrentView('create')} history={getHistory()} trash={[]} onLoad={(bill) => { loadBillData(bill); setCurrentView('create'); }} onDelete={(id) => { deleteFromHistory(id); setCurrentView('history'); }} onRestore={() => {}} onPermanentDelete={() => {}} onUpdateStatus={updateBillStatus} onUpdateEstimateStatus={updateEstimateStatus} onConvertToInvoice={() => {}} /></Suspense>}
+        {currentView === 'history' && <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>}><HistoryModal isOpen={true} onClose={() => setCurrentView('create')} history={getHistory()} trash={getTrash()} onLoad={(bill) => { loadBillData(bill); setCurrentView('create'); }} onDelete={(id) => { deleteFromHistory(id); setCurrentView('history'); }} onRestore={(id) => { restoreFromTrash(id); setCurrentView('history'); }} onPermanentDelete={(id) => { permanentDelete(id); setCurrentView('history'); }} onUpdateStatus={updateBillStatus} onUpdateEstimateStatus={updateEstimateStatus} onConvertToInvoice={() => {}} onDownloadPdf={(bill) => handleExport('pdf', bill.paymentStatus, 'download')} onDownloadExcel={(bill) => handleExport('excel', bill.paymentStatus, 'download')} /></Suspense>}
         {currentView === 'analytics' && <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>}><DashboardModal isOpen={true} onClose={() => setCurrentView('create')} history={getHistory()} /></Suspense>}
-        {currentView === 'profile' && user && <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>}><ProfileModal isOpen={true} onClose={() => setCurrentView('create')} user={user} planDetails={{ name: access.isTrial ? 'Free Trial' : 'Premium', expiry: '3 Days' }} onLogout={() => { logoutUser(); setUser(null); }} onBackup={async () => { setIsSyncing(true); await backupToDrive(); setIsSyncing(false); showToast("Backup Done"); }} onRestore={async () => { setIsSyncing(true); await restoreFromDrive(); setIsSyncing(false); }} onUpgrade={() => setShowSubscription(true)} isSyncing={isSyncing} /></Suspense>}
+        {currentView === 'profile' && user && <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>}><ProfileModal isOpen={true} onClose={() => setCurrentView('create')} user={user} planDetails={{ name: access.isTrial ? 'Free Trial' : 'Premium', expiry: '3 Days' }} onLogout={() => { logoutUser(); setUser(null); }} onBackup={async () => { setIsSyncing(true); try { await backupToDrive(); showToast("Backup Done"); } catch(e){ showToast("Backup Failed",'error'); } setIsSyncing(false); }} onRestore={async () => { setIsSyncing(true); try { await restoreFromDrive(); showToast("Restored"); } catch(e){ showToast("Restore Failed",'error'); } setIsSyncing(false); }} onUpgrade={() => setShowSubscription(true)} isSyncing={isSyncing} /></Suspense>}
 
       </main>
 
@@ -642,7 +694,7 @@ export const App = () => {
       <Suspense fallback={null}>
          <VoiceEntryModal isOpen={isVoiceOpen} onClose={() => setIsVoiceOpen(false)} onConfirm={(item) => { setCurrentItem({...currentItem, ...item, amount: calculateAmount(item.length, item.width, item.height || 0, item.quantity, item.rate, item.unit)}); setIsVoiceOpen(false); }} />
          <CalculatorModal isOpen={isCalcOpen} onClose={() => setIsCalcOpen(false)} />
-         <ShareModal isOpen={isShareOpen} onClose={() => setIsShareOpen(false)} documentType={documentType} previewText={`Bill from ${contractor.companyName}`} onShareText={() => {}} onSharePdf={async (s) => handleExport('pdf', s, 'share')} onShareExcel={async (s) => handleExport('excel', s, 'share')} onDownloadPdf={(s) => handleExport('pdf', s, 'download')} onDownloadExcel={(s) => handleExport('excel', s, 'download')} onPrint={handlePrint} />
+         <ShareModal isOpen={isShareOpen} onClose={() => setIsShareOpen(false)} documentType={documentType} previewText={`Bill from ${contractor.companyName}`} onShareText={handleShareText} onSharePdf={async (s) => handleExport('pdf', s, 'share')} onShareExcel={async (s) => handleExport('excel', s, 'share')} onDownloadPdf={(s) => handleExport('pdf', s, 'download')} onDownloadExcel={(s) => handleExport('excel', s, 'download')} onPrint={handlePrint} />
          <ExpensesModal isOpen={isExpensesOpen} onClose={() => setIsExpensesOpen(false)} expenses={expenses} onAddExpense={(e) => setExpenses([...expenses, e])} onDeleteExpense={(id) => setExpenses(expenses.filter(e => e.id !== id))} onSetExpenses={(exps) => setExpenses(exps)} billTotal={getTotals().grandTotal} />
          {showSubscription && <SubscriptionPlans onSuccess={(u) => { setUser(u); setShowSubscription(false); }} onBack={() => setShowSubscription(false)} planId={user.planId || undefined} />}
       </Suspense>
