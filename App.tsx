@@ -81,6 +81,7 @@ export const App = () => {
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isExpensesOpen, setIsExpensesOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [showSubscription, setShowSubscription] = useState(false);
   
   const [toast, setToast] = useState<{ msg: string, type: 'success'|'error' } | null>(null);
@@ -135,6 +136,7 @@ export const App = () => {
         advanceAmount: '', originalId: currentBillId
     };
     saveDraft(dataToSave);
+    // Removed auto-save to history here to prevent overwrites. Manual save button added below.
   }, [billNumber, billDate, contractor, client, items, gstEnabled, gstRate, payments, expenses, disclaimer, documentType, currentBillId, user]);
 
   // --- Helpers & Logic ---
@@ -372,9 +374,57 @@ export const App = () => {
 
   const getPriorityUnits = () => {
     const cat = (contractor.businessCategory || '').toLowerCase();
-    if (cat.includes('retail') || cat.includes('shop')) return ['pcs', 'nos', 'pkt', 'box', 'set', 'kg', 'ltr'];
-    if (cat.includes('civil') || cat.includes('pop')) return ['sq.ft', 'brass', 'cu.ft', 'rft', 'nos', 'bag'];
-    return ['nos', 'sq.ft'];
+    
+    // Retail & Shops
+    if (cat.includes('retail') || cat.includes('shop') || cat.includes('store') || cat.includes('mart') || cat.includes('bakery') || cat.includes('dairy')) {
+        return ['pcs', 'nos', 'pkt', 'box', 'set', 'kg', 'ltr', 'bag'];
+    }
+    
+    // Food & Hospitality
+    if (cat.includes('restaurant') || cat.includes('cafe') || cat.includes('kitchen') || cat.includes('hotel') || cat.includes('food')) {
+        return ['nos', 'plate', 'pcs', 'kg', 'ltr', 'set']; 
+    }
+
+    // Services & Consultants
+    if (cat.includes('service') || cat.includes('consult') || cat.includes('agency') || cat.includes('freelancer') || cat.includes('tutor') || cat.includes('repair') || cat.includes('mechanic') || cat.includes('doctor') || cat.includes('clinic') || cat.includes('gym') || cat.includes('salon')) {
+        return ['visit', 'lsum', 'hours', 'days', 'month', 'nos', 'session']; 
+    }
+
+    // Automobile
+    if (cat.includes('auto') || cat.includes('car') || cat.includes('bike') || cat.includes('garage')) {
+        return ['nos', 'set', 'ltr', 'lsum'];
+    }
+
+    // Agriculture
+    if (cat.includes('agri') || cat.includes('farm') || cat.includes('seed') || cat.includes('fertilizer')) {
+        return ['kg', 'bag', 'quintal', 'ton', 'ltr', 'acre'];
+    }
+
+    // Manufacturing & Wholesale
+    if (cat.includes('manufactur') || cat.includes('wholesale') || cat.includes('trader') || cat.includes('supplier') || cat.includes('distributor')) {
+        return ['nos', 'pcs', 'box', 'set', 'kg', 'ton', 'bag', 'quintal'];
+    }
+
+    // Logistics
+    if (cat.includes('transport') || cat.includes('logistics') || cat.includes('mover')) {
+        return ['lsum', 'kg', 'ton', 'trip', 'km']; 
+    }
+
+    // Construction (Default fallback for civil/contractors)
+    if (cat.includes('contractor') || cat.includes('builder') || cat.includes('civil') || cat.includes('fabrication') || cat.includes('interior')) {
+         if (cat.includes('electrical')) return ['point', 'nos', 'set', 'rft'];
+         if (cat.includes('plumb')) return ['nos', 'rft', 'set'];
+         if (cat.includes('paint')) return ['sq.ft', 'ltr', 'lsum'];
+         if (cat.includes('fabrication')) return ['kg', 'ton', 'sq.ft', 'rft'];
+         return ['sq.ft', 'brass', 'cu.ft', 'rft', 'nos', 'bag', 'lsum'];
+    }
+
+    // IT/Tech
+    if (cat.includes('tech') || cat.includes('soft') || cat.includes('web') || cat.includes('digital')) {
+        return ['lsum', 'hours', 'month', 'nos']; 
+    }
+
+    return ['nos', 'sq.ft', 'pcs', 'lsum'];
   };
 
   if (!user) {
