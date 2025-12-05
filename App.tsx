@@ -10,7 +10,7 @@ import {
 
 import { 
   BillItem, ContractorDetails, ClientDetails, SavedBillData, 
-  PaymentStatus, PaymentRecord, ExpenseRecord, UserProfile, DocumentType 
+  PaymentStatus, PaymentRecord, ExpenseRecord, UserProfile, DocumentType, EstimateStatus 
 } from './types';
 import { 
   APP_TEXT, CONSTRUCTION_UNITS, BUSINESS_CATEGORIES, AUTO_SUGGEST_ITEMS 
@@ -44,6 +44,7 @@ export const App = () => {
   const [access, setAccess] = useState({ hasAccess: false, daysLeft: 0, isTrial: false });
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [currentView, setCurrentView] = useState<'create' | 'history' | 'analytics' | 'profile'>('create');
+  const [refreshKey, setRefreshKey] = useState(0); // Helper to force re-renders for history
   
   // --- Create Bill State ---
   const [createStep, setCreateStep] = useState<'parties' | 'items' | 'summary'>('parties');
@@ -81,7 +82,6 @@ export const App = () => {
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isExpensesOpen, setIsExpensesOpen] = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [showSubscription, setShowSubscription] = useState(false);
   
   const [toast, setToast] = useState<{ msg: string, type: 'success'|'error' } | null>(null);
@@ -136,7 +136,6 @@ export const App = () => {
         advanceAmount: '', originalId: currentBillId
     };
     saveDraft(dataToSave);
-    // Removed auto-save to history here to prevent overwrites. Manual save button added below.
   }, [billNumber, billDate, contractor, client, items, gstEnabled, gstRate, payments, expenses, disclaimer, documentType, currentBillId, user]);
 
   // --- Helpers & Logic ---
@@ -155,6 +154,8 @@ export const App = () => {
       localStorage.setItem('theme', 'light');
     }
   };
+
+  const forceRefresh = () => setRefreshKey(prev => prev + 1);
 
   const generateNextBillNumber = () => {
     const history = getHistory();
@@ -210,6 +211,7 @@ export const App = () => {
 
       const saved = saveToHistory(dataToSave, currentBillId);
       setCurrentBillId(saved.id);
+      forceRefresh(); // Update history list
       showToast(documentType === 'estimate' ? "Estimate Saved" : "Bill Saved");
   };
 
@@ -374,57 +376,38 @@ export const App = () => {
 
   const getPriorityUnits = () => {
     const cat = (contractor.businessCategory || '').toLowerCase();
-    
-    // Retail & Shops
-    if (cat.includes('retail') || cat.includes('shop') || cat.includes('store') || cat.includes('mart') || cat.includes('bakery') || cat.includes('dairy')) {
-        return ['pcs', 'nos', 'pkt', 'box', 'set', 'kg', 'ltr', 'bag'];
-    }
-    
-    // Food & Hospitality
-    if (cat.includes('restaurant') || cat.includes('cafe') || cat.includes('kitchen') || cat.includes('hotel') || cat.includes('food')) {
-        return ['nos', 'plate', 'pcs', 'kg', 'ltr', 'set']; 
-    }
+    if (cat.includes('retail') || cat.includes('shop')) return ['pcs', 'nos', 'pkt', 'box', 'set', 'kg', 'ltr'];
+    if (cat.includes('civil') || cat.includes('pop')) return ['sq.ft', 'brass', 'cu.ft', 'rft', 'nos', 'bag'];
+    return ['nos', 'sq.ft'];
+  };
 
-    // Services & Consultants
-    if (cat.includes('service') || cat.includes('consult') || cat.includes('agency') || cat.includes('freelancer') || cat.includes('tutor') || cat.includes('repair') || cat.includes('mechanic') || cat.includes('doctor') || cat.includes('clinic') || cat.includes('gym') || cat.includes('salon')) {
-        return ['visit', 'lsum', 'hours', 'days', 'month', 'nos', 'session']; 
-    }
+  // --- History Actions Wrappers ---
+  const handleDeleteBill = (id: string) => {
+      deleteFromHistory(id);
+      forceRefresh();
+      showToast("Moved to Trash");
+  };
 
-    // Automobile
-    if (cat.includes('auto') || cat.includes('car') || cat.includes('bike') || cat.includes('garage')) {
-        return ['nos', 'set', 'ltr', 'lsum'];
-    }
+  const handleRestoreBill = (id: string) => {
+      restoreFromTrash(id);
+      forceRefresh();
+      showToast("Restored");
+  };
 
-    // Agriculture
-    if (cat.includes('agri') || cat.includes('farm') || cat.includes('seed') || cat.includes('fertilizer')) {
-        return ['kg', 'bag', 'quintal', 'ton', 'ltr', 'acre'];
-    }
+  const handlePermanentDelete = (id: string) => {
+      permanentDelete(id);
+      forceRefresh();
+      showToast("Deleted Permanently");
+  };
 
-    // Manufacturing & Wholesale
-    if (cat.includes('manufactur') || cat.includes('wholesale') || cat.includes('trader') || cat.includes('supplier') || cat.includes('distributor')) {
-        return ['nos', 'pcs', 'box', 'set', 'kg', 'ton', 'bag', 'quintal'];
-    }
+  const handleUpdateStatus = (id: string, status: PaymentStatus) => {
+      updateBillStatus(id, status);
+      forceRefresh();
+  };
 
-    // Logistics
-    if (cat.includes('transport') || cat.includes('logistics') || cat.includes('mover')) {
-        return ['lsum', 'kg', 'ton', 'trip', 'km']; 
-    }
-
-    // Construction (Default fallback for civil/contractors)
-    if (cat.includes('contractor') || cat.includes('builder') || cat.includes('civil') || cat.includes('fabrication') || cat.includes('interior')) {
-         if (cat.includes('electrical')) return ['point', 'nos', 'set', 'rft'];
-         if (cat.includes('plumb')) return ['nos', 'rft', 'set'];
-         if (cat.includes('paint')) return ['sq.ft', 'ltr', 'lsum'];
-         if (cat.includes('fabrication')) return ['kg', 'ton', 'sq.ft', 'rft'];
-         return ['sq.ft', 'brass', 'cu.ft', 'rft', 'nos', 'bag', 'lsum'];
-    }
-
-    // IT/Tech
-    if (cat.includes('tech') || cat.includes('soft') || cat.includes('web') || cat.includes('digital')) {
-        return ['lsum', 'hours', 'month', 'nos']; 
-    }
-
-    return ['nos', 'sq.ft', 'pcs', 'lsum'];
+  const handleUpdateEstimateStatus = (id: string, status: EstimateStatus) => {
+      updateEstimateStatus(id, status);
+      forceRefresh();
   };
 
   if (!user) {
@@ -744,7 +727,26 @@ export const App = () => {
         )}
 
         {/* OTHER VIEWS */}
-        {currentView === 'history' && <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>}><HistoryModal isOpen={true} onClose={() => setCurrentView('create')} history={getHistory()} trash={getTrash()} onLoad={(bill) => { loadBillData(bill); setCurrentView('create'); }} onDelete={(id) => { deleteFromHistory(id); setCurrentView('history'); }} onRestore={(id) => { restoreFromTrash(id); setCurrentView('history'); }} onPermanentDelete={(id) => { permanentDelete(id); setCurrentView('history'); }} onUpdateStatus={updateBillStatus} onUpdateEstimateStatus={updateEstimateStatus} onConvertToInvoice={() => {}} onDownloadPdf={(bill) => handleExport('pdf', bill.paymentStatus, 'download')} onDownloadExcel={(bill) => handleExport('excel', bill.paymentStatus, 'download')} /></Suspense>}
+        {currentView === 'history' && (
+           <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>}>
+              <HistoryModal 
+                 isOpen={true} 
+                 onClose={() => setCurrentView('create')} 
+                 history={getHistory()} 
+                 trash={getTrash()} 
+                 onLoad={(bill) => { loadBillData(bill); setCurrentView('create'); }} 
+                 onDelete={handleDeleteBill}
+                 onRestore={handleRestoreBill}
+                 onPermanentDelete={handlePermanentDelete}
+                 onUpdateStatus={handleUpdateStatus}
+                 onUpdateEstimateStatus={handleUpdateEstimateStatus}
+                 onConvertToInvoice={() => {}} 
+                 onDownloadPdf={(bill) => handleExport('pdf', bill.paymentStatus, 'download')} 
+                 onDownloadExcel={(bill) => handleExport('excel', bill.paymentStatus, 'download')} 
+              />
+           </Suspense>
+        )}
+
         {currentView === 'analytics' && <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>}><DashboardModal isOpen={true} onClose={() => setCurrentView('create')} history={getHistory()} /></Suspense>}
         {currentView === 'profile' && user && <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>}><ProfileModal isOpen={true} onClose={() => setCurrentView('create')} user={user} planDetails={{ name: access.isTrial ? 'Free Trial' : 'Premium', expiry: '3 Days' }} onLogout={() => { logoutUser(); setUser(null); }} onBackup={async () => { setIsSyncing(true); try { await backupToDrive(); showToast("Backup Done"); } catch(e){ showToast("Backup Failed",'error'); } setIsSyncing(false); }} onRestore={async () => { setIsSyncing(true); try { await restoreFromDrive(); showToast("Restored"); } catch(e){ showToast("Restore Failed",'error'); } setIsSyncing(false); }} onUpgrade={() => setShowSubscription(true)} isSyncing={isSyncing} /></Suspense>}
 
