@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { X, FileText, FileDown, Share2, Loader2, Table, MessageCircle, Printer, CheckCircle2 } from 'lucide-react';
 import { APP_TEXT } from '../constants';
