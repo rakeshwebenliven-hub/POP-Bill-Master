@@ -81,7 +81,6 @@ export const App = () => {
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isExpensesOpen, setIsExpensesOpen] = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [showSubscription, setShowSubscription] = useState(false);
   
   const [toast, setToast] = useState<{ msg: string, type: 'success'|'error' } | null>(null);
@@ -136,7 +135,6 @@ export const App = () => {
         advanceAmount: '', originalId: currentBillId
     };
     saveDraft(dataToSave);
-    // Removed auto-save to history here to prevent overwrites. Manual save button added below.
   }, [billNumber, billDate, contractor, client, items, gstEnabled, gstRate, payments, expenses, disclaimer, documentType, currentBillId, user]);
 
   // --- Helpers & Logic ---
@@ -436,7 +434,7 @@ export const App = () => {
                          </button>
                          <button onClick={handleNewBill} className="hidden sm:block text-xs bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg font-medium hover:bg-slate-200 transition">Reset</button>
                          <button onClick={toggleTheme} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full">{isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}</button>
-                         <button onClick={() => setIsProfileModalOpen(true)} className="p-1 bg-indigo-100 dark:bg-indigo-900 rounded-full text-indigo-600 dark:text-indigo-300"><User className="w-5 h-5" /></button>
+                         <button onClick={() => setCurrentView('profile')} className="p-1 bg-indigo-100 dark:bg-indigo-900 rounded-full text-indigo-600 dark:text-indigo-300"><User className="w-5 h-5" /></button>
                       </div>
                    </div>
                    
