@@ -1,4 +1,3 @@
-
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { BillItem, ClientDetails, ContractorDetails, PaymentStatus, PaymentRecord, DocumentType } from '../types';
@@ -23,7 +22,7 @@ export const generatePDF = (
   const pageHeight = doc.internal.pageSize.height;
   
   const formattedDate = billDate ? new Date(billDate).toLocaleDateString() : new Date().toLocaleDateString();
-  const primaryColor = documentType === 'estimate' ? [217, 119, 6] : [79, 70, 229]; // Amber for Estimate, Indigo for Invoice
+  const primaryColor = documentType === 'estimate' ? [217, 119, 6] : [79, 70, 229]; 
 
   const isPaid = paymentStatus === 'Paid';
   const displayBalance = isPaid ? 0 : totals.balance;
