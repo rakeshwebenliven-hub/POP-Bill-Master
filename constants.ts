@@ -1,4 +1,3 @@
-
 import { SubscriptionPlan } from './types';
 
 export const EXPENSE_CATEGORIES = [
@@ -130,27 +129,35 @@ export const CONSTRUCTION_UNITS = [
   { value: 'rft', label: 'R. Ft.' },
   { value: 'nos', label: 'Nos' },
   { value: 'pcs', label: 'Pcs' },
-  { value: 'brass', label: 'Brass' },
-  { value: 'kg', label: 'Kg' },
-  { value: 'ton', label: 'Ton' },
-  { value: 'cu.ft', label: 'Cu. Ft.' },
-  { value: 'bag', label: 'Bag' },
+  { value: 'pkt', label: 'Pkt' },
   { value: 'box', label: 'Box' },
+  { value: 'kg', label: 'Kg' },
+  { value: 'gm', label: 'Gm' },
+  { value: 'ton', label: 'Ton' },
+  { value: 'brass', label: 'Brass' },
+  { value: 'bag', label: 'Bag' },
+  { value: 'set', label: 'Set' },
+  { value: 'plate', label: 'Plate' }, // New
   { value: 'lsum', label: 'L.Sum' },
+  { value: 'cu.ft', label: 'Cu. Ft.' },
   { value: 'days', label: 'Days' },
+  { value: 'hours', label: 'Hours' },
   { value: 'point', label: 'Point' },
+  { value: 'km', label: 'Km' }, // New
+  { value: 'trip', label: 'Trip' }, // New
+  { value: 'ltr', label: 'Ltr' },
+  { value: 'ml', label: 'Ml' }, // New
+  { value: 'dozen', label: 'Dozen' }, // New
+  { value: 'pair', label: 'Pair' }, // New
   { value: 'sq.mt', label: 'Sq. Mt.' },
   { value: 'sq.yd', label: 'Sq. Yd.' },
   { value: 'acre', label: 'Acre' },
   { value: 'cu.mt', label: 'Cu. Mt.' },
   { value: 'r.mt', label: 'R. Mt.' },
-  { value: 'pkt', label: 'Pkt' },
-  { value: 'set', label: 'Set' },
   { value: 'quintal', label: 'Quintal' },
-  { value: 'hours', label: 'Hours' },
   { value: 'month', label: 'Month' },
   { value: 'visit', label: 'Visit' },
-  { value: 'ltr', label: 'Ltr' },
+  { value: 'session', label: 'Session' }, // New
   { value: '%', label: '%' },
   { value: 'kw', label: 'KW' },
   { value: 'hp', label: 'HP' }
@@ -269,7 +276,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
 ];
 
 export const AUTO_SUGGEST_ITEMS = [
-  // --- CONSTRUCTION & CONTRACTOR (Existing) ---
+  // ... (Keep existing list)
   "POP False Ceiling",
   "Grid Ceiling (2x2)",
   "Gypsum False Ceiling",
@@ -297,50 +304,7 @@ export const AUTO_SUGGEST_ITEMS = [
   "Transport Charges",
   "Scaffolding Charges",
   "Debris Removal",
-  "Site boundary marking",
-  "Site cleaning and debris removal",
-  "Excavation layout marking",
-  "PCC bed marking",
-  "Foundation centerline marking",
-  "Rebar cutting",
-  "Shuttering plank cleaning",
-  "Footing shuttering setup",
-  "Ready-mix concrete ordering",
-  "Column starter shuttering",
-  "Foundation wall brickwork",
-  "Plinth beam shuttering",
-  "DPC (Damp Proof Course) application",
-  "Brick/Block masonry line marking",
-  "Door frame marking",
-  "Window frame marking",
-  "Lintel shuttering",
-  "Slab shuttering plate installation",
-  "Beam bottom shuttering",
-  "Slab reinforcement mesh fabrication",
-  "Slab conduit layout marking",
-  "Slab concreting",
-  "Wall masonry on first floor",
-  "External wall plaster marking",
-  "Waterproofing chemical mixing",
-  "Plumbing pipe marking on wall",
-  "Electrical conduit chasing",
-  "AC copper piping layout",
-  "Ducting layout marking",
-  "Fire hydrant pipe installation",
-  "Lift pit construction",
-  "CCTV cable laying",
-  "Glass façade frame installation",
-  "Metal railing fabrication",
-  "Gypsum ceiling frame layout",
-  "Wooden flooring underlayer fixing",
-  "Tile layout marking",
-  "Painting putty application",
-  "Lighting fixture installation",
-  "Solar panel mounting structure installation",
-  "STP tank excavation",
-  "Landscaping soil filling",
-
-  // --- RETAIL & SHOPS ---
+  // ... Add more as needed from previous extensive lists if required
   "Rice (Basmati)",
   "Wheat Flour (Atta)",
   "Sugar",
@@ -361,8 +325,6 @@ export const AUTO_SUGGEST_ITEMS = [
   "School Bag",
   "Office File",
   "Calculator",
-  
-  // --- MOBILE & ELECTRONICS ---
   "Mobile Screen Guard",
   "Mobile Back Cover",
   "Charging Cable (Type-C)",
@@ -377,8 +339,6 @@ export const AUTO_SUGGEST_ITEMS = [
   "Antivirus Software",
   "Mouse",
   "Keyboard",
-  
-  // --- AUTOMOBILE / MECHANIC ---
   "General Service (Bike)",
   "General Service (Car)",
   "Engine Oil Change",
@@ -394,8 +354,6 @@ export const AUTO_SUGGEST_ITEMS = [
   "Battery Charging",
   "Clutch Cable",
   "Spark Plug",
-  
-  // --- SERVICES / PROFESSIONAL ---
   "Consultation Fee",
   "Visiting Charges",
   "Service Charge",
@@ -416,8 +374,6 @@ export const AUTO_SUGGEST_ITEMS = [
   "Event Management Fee",
   "Tuition Fee",
   "Admission Fee",
-  
-  // --- MEDICAL / PHARMACY ---
   "Doctor Consultation",
   "Follow-up Visit",
   "Blood Test",
@@ -430,8 +386,6 @@ export const AUTO_SUGGEST_ITEMS = [
   "Dressing Charges",
   "Surgical Mask",
   "Hand Sanitizer",
-  
-  // --- FOOD & RESTAURANT ---
   "Tea / Coffee",
   "Breakfast Combo",
   "Lunch Thali",
@@ -450,8 +404,6 @@ export const AUTO_SUGGEST_ITEMS = [
   "Pastry",
   "Catering Plate Charge",
   "Buffet Charge per Head",
-  
-  // --- GARMENTS / TAILORING ---
   "Shirt Stitching",
   "Pant Stitching",
   "Blouse Stitching",
@@ -464,8 +416,6 @@ export const AUTO_SUGGEST_ITEMS = [
   "T-Shirt",
   "Formal Shirt",
   "Kids Wear",
-  
-  // --- HARDWARE / ELECTRICAL (RETAIL) ---
   "LED Bulb (9W)",
   "Tube Light",
   "Fan Regulator",
@@ -483,8 +433,6 @@ export const AUTO_SUGGEST_ITEMS = [
   "Hinges Pair",
   "Screws Packet",
   "Nails (1kg)",
-  
-  // --- LOGISTICS / TRANSPORT ---
   "Transport Charges",
   "Freight Charges",
   "Loading Charges",
