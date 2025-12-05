@@ -1,4 +1,3 @@
-
 import { SavedBillData, ContractorProfile, ContractorDetails, PaymentStatus, ClientDetails, ClientProfile, DocumentType, EstimateStatus } from '../types';
 
 const DRAFT_KEY = 'pop_bill_draft';
@@ -7,20 +6,30 @@ const TRASH_KEY = 'pop_bill_trash';
 const PROFILES_KEY = 'pop_contractor_profiles';
 const CLIENT_PROFILES_KEY = 'pop_client_profiles';
 
+// Helper for safe JSON parsing
+const safeParse = (jsonString: string | null, fallback: any) => {
+  if (!jsonString) return fallback;
+  try {
+    return JSON.parse(jsonString);
+  } catch (e) {
+    console.error("Storage parse error", e);
+    return fallback;
+  }
+};
+
 // --- Drafts ---
 
 export const saveDraft = (data: Omit<SavedBillData, 'id' | 'timestamp'> & { originalId?: string | null }) => {
   const draft: any = {
     ...data,
-    id: data.originalId || 'draft', // Persist original ID if we are editing a saved record
+    id: data.originalId || 'draft',
     timestamp: Date.now()
   };
   localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
 };
 
 export const loadDraft = (): SavedBillData | null => {
-  const data = localStorage.getItem(DRAFT_KEY);
-  return data ? JSON.parse(data) : null;
+  return safeParse(localStorage.getItem(DRAFT_KEY), null);
 };
 
 // --- History ---
@@ -32,13 +41,10 @@ export const saveToHistory = (
   const history = getHistory();
   let existingIndex = -1;
 
-  // 1. Priority: Match by Explicit ID (if editing an existing record)
   if (currentId) {
     existingIndex = history.findIndex(b => b.id === currentId);
   }
 
-  // 2. Secondary: Match by Bill Number AND Type (Prevent duplicates if ID lost/not provided)
-  // This handles case where user manually types an existing bill number
   if (existingIndex === -1 && data.billNumber) {
     existingIndex = history.findIndex(b => 
       b.billNumber.trim().toLowerCase() === data.billNumber.trim().toLowerCase() &&
@@ -46,31 +52,22 @@ export const saveToHistory = (
     );
   }
 
-  // REMOVED: Fallback by Client Name. This was causing new bills for same client to overwrite old ones.
-
   if (existingIndex >= 0) {
-    // Update existing bill
     const existingBill = history[existingIndex];
     const updatedBill: SavedBillData = {
       ...existingBill,
       ...data,
-      // Keep expenses if not provided in update (though App typically passes full state)
       expenses: data.expenses || existingBill.expenses || [],
-      // Keep original ID, but update timestamp to reflect modification
       timestamp: Date.now()
     };
     
-    // Update in place
     history[existingIndex] = updatedBill;
-    
-    // Move updated bill to top of list to show recent edits first
     history.splice(existingIndex, 1);
     history.unshift(updatedBill);
     
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
     return updatedBill;
   } else {
-    // Create new bill
     const newBill: SavedBillData = {
       ...data,
       expenses: data.expenses || [],
@@ -78,7 +75,6 @@ export const saveToHistory = (
       timestamp: Date.now()
     };
     
-    // Prepend to history (newest first)
     const updatedHistory = [newBill, ...history];
     localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
     return newBill;
@@ -86,27 +82,22 @@ export const saveToHistory = (
 };
 
 export const getHistory = (): SavedBillData[] => {
-  const data = localStorage.getItem(HISTORY_KEY);
-  return data ? JSON.parse(data) : [];
+  return safeParse(localStorage.getItem(HISTORY_KEY), []);
 };
 
 export const getTrash = (): SavedBillData[] => {
-  const data = localStorage.getItem(TRASH_KEY);
-  return data ? JSON.parse(data) : [];
+  return safeParse(localStorage.getItem(TRASH_KEY), []);
 };
 
-// Soft Delete: Move from History to Trash
 export const deleteFromHistory = (id: string) => {
   const history = getHistory();
   const billToDelete = history.find(b => b.id === id);
   
   if (billToDelete) {
-    // Add to trash
     const trash = getTrash();
     const updatedTrash = [billToDelete, ...trash];
     localStorage.setItem(TRASH_KEY, JSON.stringify(updatedTrash));
 
-    // Remove from history
     const updatedHistory = history.filter(bill => bill.id !== id);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
   }
@@ -117,12 +108,10 @@ export const restoreFromTrash = (id: string) => {
   const billToRestore = trash.find(b => b.id === id);
   
   if (billToRestore) {
-    // Add back to history (top)
     const history = getHistory();
     const updatedHistory = [billToRestore, ...history];
     localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
 
-    // Remove from trash
     const updatedTrash = trash.filter(b => b.id !== id);
     localStorage.setItem(TRASH_KEY, JSON.stringify(updatedTrash));
   }
@@ -150,7 +139,7 @@ export const updateEstimateStatus = (id: string, status: EstimateStatus) => {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
 };
 
-// --- Contractor Profiles ---
+// --- Profiles ---
 
 export const saveProfile = (
   details: ContractorDetails, 
@@ -160,7 +149,6 @@ export const saveProfile = (
 ): ContractorProfile => {
   const profiles = getProfiles();
   
-  // MODE: UPDATE (Strictly update specific ID)
   if (mode === 'update' && targetId) {
     const idx = profiles.findIndex(p => p.id === targetId);
     if (idx >= 0) {
@@ -172,12 +160,10 @@ export const saveProfile = (
 
   const baseName = name || details.companyName || details.name || 'New Profile';
   
-  // MODE: CREATE (Force new, handle name duplicates)
   if (mode === 'create') {
     let finalName = baseName;
     const nameExists = profiles.some(p => p.name.toLowerCase() === baseName.toLowerCase());
     
-    // If name exists, append category to differentiate (e.g., "My Corp (Retail)")
     if (nameExists && details.businessCategory) {
        finalName = `${baseName} (${details.businessCategory})`;
     } else if (nameExists) {
@@ -194,22 +180,17 @@ export const saveProfile = (
     return newProfile;
   }
 
-  // MODE: AUTO (Default legacy behavior - Match by name)
   const existingIndex = profiles.findIndex(p => 
     p.name.trim().toLowerCase() === baseName.trim().toLowerCase()
   );
 
   if (existingIndex >= 0) {
-    const updatedProfile = {
-      ...profiles[existingIndex],
-      details: details
-    };
+    const updatedProfile = { ...profiles[existingIndex], details: details };
     profiles[existingIndex] = updatedProfile;
     localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
     return updatedProfile;
   }
 
-  // Create new if no match found in auto mode
   const newProfile: ContractorProfile = {
     id: Date.now().toString(),
     name: baseName,
@@ -222,8 +203,7 @@ export const saveProfile = (
 };
 
 export const getProfiles = (): ContractorProfile[] => {
-  const data = localStorage.getItem(PROFILES_KEY);
-  return data ? JSON.parse(data) : [];
+  return safeParse(localStorage.getItem(PROFILES_KEY), []);
 };
 
 export const deleteProfile = (id: string) => {
@@ -232,48 +212,37 @@ export const deleteProfile = (id: string) => {
   localStorage.setItem(PROFILES_KEY, JSON.stringify(updated));
 };
 
-// --- Client Profiles (Prevent Duplicates) ---
-
 export const saveClientProfile = (details: ClientDetails, contractorId?: string): ClientProfile => {
   const profiles = getClientProfiles();
-  
-  // Check if a client with this name already exists
   const existingIndex = profiles.findIndex(p => 
     p.details.name.trim().toLowerCase() === details.name.trim().toLowerCase() &&
-    // Only treat as duplicate if it belongs to same contractor or is global
     (!contractorId || !p.contractorId || p.contractorId === contractorId)
   );
 
   if (existingIndex >= 0) {
-    // Update existing profile with new details
-    const existingProfile = profiles[existingIndex];
     const updatedProfile = {
-      ...existingProfile,
-      contractorId: contractorId || existingProfile.contractorId, // Update link if provided
-      details: details // Overwrite with new phone/address
+      ...profiles[existingIndex],
+      contractorId: contractorId || profiles[existingIndex].contractorId,
+      details: details
     };
-    
     profiles[existingIndex] = updatedProfile;
     localStorage.setItem(CLIENT_PROFILES_KEY, JSON.stringify(profiles));
     return updatedProfile;
   }
 
-  // Create new if not found
   const newProfile: ClientProfile = {
     id: Date.now().toString(),
     contractorId: contractorId,
     name: details.name || 'New Client',
     details
   };
-  
   const updatedProfiles = [...profiles, newProfile];
   localStorage.setItem(CLIENT_PROFILES_KEY, JSON.stringify(updatedProfiles));
   return newProfile;
 };
 
 export const getClientProfiles = (): ClientProfile[] => {
-  const data = localStorage.getItem(CLIENT_PROFILES_KEY);
-  return data ? JSON.parse(data) : [];
+  return safeParse(localStorage.getItem(CLIENT_PROFILES_KEY), []);
 };
 
 export const deleteClientProfile = (id: string) => {
@@ -281,8 +250,6 @@ export const deleteClientProfile = (id: string) => {
   const updated = profiles.filter(p => p.id !== id);
   localStorage.setItem(CLIENT_PROFILES_KEY, JSON.stringify(updated));
 };
-
-// --- Utils ---
 
 export const clearDraft = () => {
   localStorage.removeItem(DRAFT_KEY);
